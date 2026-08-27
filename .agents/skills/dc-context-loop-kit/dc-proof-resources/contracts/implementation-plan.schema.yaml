@@ -1,0 +1,79 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: delivery-proof/implementation-plan.schema.yaml
+title: Delivery Proof Implementation Plan
+type: object
+additionalProperties: false
+required: [document_type, implementation_plan]
+properties:
+  document_type: {const: implementation_plan}
+  implementation_plan:
+    type: object
+    additionalProperties: true
+    required: [requirement_ref, status, context_review, test_strategy, blockers, slices]
+    properties:
+      requirement_ref: {type: object, required: [requirement_id]}
+      status: {enum: [PLANNED, IN_PROGRESS, READY]}
+      context_review:
+        type: object
+        additionalProperties: false
+        required: [status, requirement_refs, scenario_refs, matrix_refs, project_refs, code_structure_refs, findings, assumptions, open_questions, decisions]
+        properties:
+          status: {const: COMPLETED}
+          requirement_refs: {type: array, minItems: 1, items: {type: string, minLength: 1}}
+          scenario_refs: {type: array, minItems: 1, items: {type: string, minLength: 1}}
+          matrix_refs: {type: array, minItems: 1, items: {type: string, minLength: 1}}
+          project_refs: {type: array, minItems: 1, items: {type: string, minLength: 1}}
+          code_structure_refs: {type: array, minItems: 1, items: {type: string, minLength: 1}}
+          findings:
+            type: array
+            minItems: 1
+            items:
+              type: object
+              additionalProperties: false
+              required: [area, observation, impact]
+              properties:
+                area: {type: string, minLength: 1}
+                observation: {type: string, minLength: 1}
+                impact: {type: string, minLength: 1}
+          assumptions: {type: array, items: {type: string, minLength: 1}}
+          open_questions: {type: array}
+          decisions: {type: array}
+      human_gate:
+        type: object
+        additionalProperties: false
+        required: [required, status, risk_categories]
+        properties:
+          required: {type: boolean}
+          status: {enum: [NOT_REQUIRED, PENDING, CONFIRMED]}
+          risk_categories:
+            type: array
+            items: {enum: [database_migration, public_api, auth_security, data_compatibility, irreversible_change, acceptance_observation]}
+          confirmed_by: {type: string, minLength: 1}
+          confirmed_at: {type: string, minLength: 1}
+          decision_refs: {type: array, items: {type: string, minLength: 1}}
+      test_strategy:
+        type: object
+        additionalProperties: false
+        required: [default, exemptions]
+        properties:
+          default: {const: tdd}
+          exemptions: {type: array}
+      blockers: {type: array}
+      slices:
+        type: array
+        minItems: 1
+        items:
+          type: object
+          additionalProperties: true
+          required: [id, title, kind, objective, check_refs, assertion_refs, production_refs, test_refs, status]
+          properties:
+            id: {type: string, minLength: 1}
+            title: {type: string, minLength: 1}
+            kind: {enum: [behavior_slice, engineering_slice, readiness_slice]}
+            objective: {type: string, minLength: 1}
+            depends_on: {type: array}
+            check_refs: {type: array}
+            assertion_refs: {type: array}
+            production_refs: {type: array}
+            test_refs: {type: array}
+            status: {enum: [PLANNED, IN_PROGRESS, COMPLETED, BLOCKED]}

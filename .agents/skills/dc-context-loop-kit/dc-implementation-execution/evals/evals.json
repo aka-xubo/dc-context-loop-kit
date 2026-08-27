@@ -1,0 +1,67 @@
+{
+  "skill_name": "dc-implementation-execution",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "REQ-USER-AUTH 的需求、场景和验收矩阵都已确认。仓库目前只有 Go 健康检查，没有前端、认证模块、数据库迁移和 JWT 依赖。开始实现。",
+      "expected_output": "进入开发实现，把当前需求所需的工程基线纳入首批实现工作；工程结构就绪后，对可单元验证的认证行为执行测试先行。",
+      "files": [],
+      "expectations": [
+        "将当前阶段称为开发实现",
+        "识别前端、后端、数据库、迁移、依赖和启动条件属于实现工作",
+        "形成最小实现规划并开始修改真实代码",
+        "不会因为仓库只有骨架而停止并要求用户先准备架构",
+        "不把测试先行过程当作最终交付或正式验收"
+      ]
+    },
+    {
+      "id": 1,
+      "prompt": "已确认矩阵只有一个 API 检查：没有 Token 时接口返回 401。项目没有认证中间件，但服务可以启动。请实现。",
+      "expected_output": "记录鉴权入口、路由和应用装配的测试先行豁免，直接完成真实装配，再交给 dc-acceptance-verification。",
+      "files": [],
+      "expectations": [
+        "不制造与已确认矩阵无关的单元检查，并记录工程装配豁免",
+        "实现真实接口鉴权入口",
+        "补齐路由、配置和启动装配",
+        "完成后路由到 dc-acceptance-verification"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "矩阵已确认并要求同一外部身份重复登录只创建一个本地用户。数据库还没有任何表。继续开发。",
+      "expected_output": "把身份唯一约束、迁移、Repository 和业务服务作为同一纵向实现切片；迁移可豁免测试先行，业务服务默认先写有效 RED。",
+      "files": [],
+      "expectations": [
+        "创建满足已确认行为的最小身份持久化设计",
+        "实现迁移、Repository 和业务服务，并对业务服务先写有效 RED",
+        "数据库缺失被视为实现任务而不是用户门禁",
+        "不静默增加已确认需求之外的业务规则"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "开发中发现产品没有说明退款后是否自动发通知，而这个决定会改变接口结果和验收结论。继续实现。",
+      "expected_output": "识别为影响可观察行为的未决业务规则，暂停受影响切片并返回需求变化判断，而不是擅自实现。",
+      "files": [],
+      "expectations": [
+        "区分实现选择与业务行为选择",
+        "输出 truth_changed、behavior_changed、affected_requirements 和 reason",
+        "不擅自决定会改变 PASS/FAIL 的规则",
+        "不让无关实现切片机械失效"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "REQ-OAUTH-LOGIN 的矩阵要求 real_test_app。OAuth token exchange、用户信息适配器、JWT 和 POST /login 已实现，单元测试全绿，服务启动后 /readyz 返回 200；但项目没有授权发起入口、OAuth callback 路由或 state 校验。现在进入真实接口验证。",
+      "expected_output": "拒绝进入 dc-acceptance-verification，创建或更新实现计划并保持开发实现阶段，明确授权入口与 callback 缺失使 APPLICATION_READY 门禁失败。",
+      "files": [],
+      "expectations": [
+        "不把单元测试全绿或 readyz 200 当成应用就绪",
+        "要求存在结构化 实现计划.md",
+        "指出 authorization_entry 和 callback 缺失",
+        "保持 dc-implementation-execution 或开发实现阶段",
+        "要求通过 --gate application-ready 后才能进入 dc-acceptance-verification"
+      ]
+    }
+  ]
+}

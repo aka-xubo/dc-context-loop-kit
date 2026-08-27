@@ -1,0 +1,25 @@
+# Deep Crew Context Loop Kit
+
+这是一个可复制、可独立分发的 Deep Crew 上下文循环技能包。包内技能全部使用 `dc-` 前缀。
+
+## 入口
+
+- `dc-context-loop`：读取 Issue 完整评论时间线，结合本地材料和用户最新消息，由模型总结上下文、判断需求变化并协调循环。
+
+## 节点技能
+
+- `dc-grilling`：当前对话中的按需澄清。
+- `dc-requirement-slicing`：需求归类与切片。
+- `dc-acceptance-design`：SCN、CHK、AST 验收规格设计。
+- `dc-implementation-execution`：本地实现与开发检查。
+- `dc-acceptance-verification`：本地 RUN/ART 验证。
+- `dc-acceptance-closure`：本地证据审查与验收结论。
+- `dc-issue-intake`：读取实时 Issue、全部评论和必要附件。
+
+## 共享资源
+
+`dc-proof-resources` 保存节点技能使用的 Schema、参考资料、模板和校验脚本。复制整个 `dc-context-loop-kit` 时保持目录结构不变，节点技能中的相对引用即可继续工作。
+
+## 使用方式
+
+Issue 评论时间线保存协作历史；本地文件保存当前完整定义和本次验收材料。需要平台发布动作时，按当前环境提供的 Issue CLI 和权限执行。

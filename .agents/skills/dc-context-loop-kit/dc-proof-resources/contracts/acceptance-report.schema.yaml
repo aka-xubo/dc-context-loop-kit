@@ -1,0 +1,36 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: delivery-proof/acceptance-report.schema.yaml
+title: Delivery Proof Acceptance Report
+type: object
+additionalProperties: false
+required: [document_type, acceptance_report]
+properties:
+  document_type: {const: acceptance_report}
+  acceptance_report:
+    type: object
+    additionalProperties: true
+    required: [requirement_ref, status, git_commit, definition_digests, scenario_results]
+    properties:
+      requirement_ref: {type: object, required: [requirement_id]}
+      status: {enum: [SATISFIED, NOT_SATISFIED]}
+      git_commit:
+        oneOf:
+          - {type: 'null'}
+          - {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
+      definition_digests:
+        type: object
+        required: [requirement, scenarios, matrix]
+      scenario_results:
+        type: array
+        items:
+          type: object
+          additionalProperties: true
+          required: [scenario_ref, status, reason, run_refs]
+          properties:
+            scenario_ref: {type: string, pattern: '^SCN-[A-Z0-9-]+$'}
+            status: {const: PASS}
+            reason: {type: string, minLength: 1}
+            run_refs:
+              type: array
+              minItems: 1
+              items: {type: string, pattern: '^RUN-[0-9]+$'}

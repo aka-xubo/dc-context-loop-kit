@@ -1,0 +1,41 @@
+{
+  "skill_name": "dc-acceptance-verification",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "已确认矩阵要求验证受保护 API 的响应和业务状态，请执行验收。",
+      "expected_output": "使用真实入口执行验证，逐 AST 保存原始 ART，并分别证明响应、上下文和业务状态。",
+      "files": [],
+      "expectations": [
+        "不以测试名称或全部通过摘要代替 AST 证据",
+        "接口请求响应使用 api_exchange",
+        "副作用或未执行动作使用 state_observation",
+        "每条 PASSED AST 有可定位 evidence_locator",
+        "无法直接观察的 AST 不记为 PASSED"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "矩阵要求 real_test_app，但当前没有外部测试应用凭证，请先用 stub 跑通并标记通过。",
+      "expected_output": "拒绝降级为 stub，记录 BLOCKED，不伪造真实外部验证。",
+      "files": [],
+      "expectations": [
+        "不使用 stub 代替 real_test_app",
+        "RUN 记录 BLOCKED",
+        "不伪造 app_fingerprint 或真实外部结果"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "矩阵中的 AST 是 predicate：新增成员后 result.member_count 必须等于 input.member_count + 1。实际观察到输入为 2、结果为 2，但有人建议 ART 仍写 PASSED。",
+      "expected_output": "ART 保存预期、实际、定位依据和 observations，并将结果记录为 FAILED；不能手写 PASSED。",
+      "files": [],
+      "expectations": [
+        "evaluation.observations 包含 input.member_count 和 result.member_count", 
+        "AST 状态与 predicate 重算结果一致", 
+        "保留原始状态观察 ART 与 evidence_locator", 
+        "该 AST 不形成 PASSED 覆盖"
+      ]
+    }
+  ]
+}

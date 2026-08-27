@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deep Crew 上下文循环交付"
+  short_description: "从 Issue 评论时间线理解上下文并持续推进需求、实现与验收"
+  default_prompt: "使用 $dc-context-loop 通过 dc-issue-intake 获取完整 Issue 原始时间线，结合用户最新消息、本地代码和知识文件，由模型区分事实、决策、讨论、指令和未决问题，判断需求变化、当前节点、是否需要澄清，并推进一个最小下一步。不要由脚本或事件时间自动路由。"

@@ -1,0 +1,106 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: delivery-proof/test-evidence.schema.yaml
+title: Delivery Proof Test Evidence
+type: object
+additionalProperties: false
+required: [document_type, test_evidence]
+properties:
+  document_type: {const: test_evidence}
+  test_evidence:
+    type: object
+    additionalProperties: true
+    required: [requirement_ref, git_commit, runs, artifacts, definition_digests]
+    properties:
+      requirement_ref: {type: object, required: [requirement_id]}
+      git_commit:
+        oneOf:
+          - {type: 'null'}
+          - {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
+      definition_digests:
+        type: object
+        required: [requirement, scenarios, matrix]
+      runs:
+        type: array
+        items:
+          type: object
+          required: [phase, check_refs, assertion_refs, supporting_run_refs, artifact_refs]
+          additionalProperties: true
+          oneOf:
+            - properties:
+                check_refs: {minItems: 1}
+                assertion_refs: {minItems: 1}
+            - properties:
+                check_refs: {maxItems: 0}
+                assertion_refs: {maxItems: 0}
+                supporting_run_refs: {maxItems: 0}
+          not:
+            anyOf:
+              - {required: [code_revision]}
+              - {required: [git_commit]}
+              - {required: [expected_failure_observed]}
+          properties:
+            phase:
+              enum: [unit_verification, app_start, api_verification, ui_verification, regression, cleanup]
+            check_refs:
+              type: array
+              items: {type: string, pattern: '^CHK-[A-Za-z0-9_-]+$'}
+            assertion_refs:
+              type: array
+              items: {type: string, pattern: '^AST-[A-Za-z0-9_-]+$'}
+            supporting_run_refs:
+              type: array
+              items: {type: string, pattern: '^RUN-[A-Za-z0-9_-]+$'}
+            artifact_refs:
+              type: array
+              items: {type: string, pattern: '^ART-[A-Za-z0-9_-]+$'}
+            external_verification:
+              oneOf:
+                - {type: 'null'}
+                - {$ref: '#/$defs/external_verification'}
+      artifacts:
+        type: array
+        items:
+          type: object
+          additionalProperties: true
+          required: [id, type, location]
+          properties:
+            id: {type: string, pattern: '^ART-[A-Za-z0-9_-]+$'}
+            type: {enum: [command_output, api_exchange, state_observation, screenshot]}
+            location: {type: string, minLength: 1}
+            assertion_results:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [assertion_id, expected, observed, status, evidence_locator]
+                properties:
+                  assertion_id: {type: string, pattern: '^AST-[A-Za-z0-9_-]+$'}
+                  expected: {type: string, minLength: 1}
+                  observed: {type: string, minLength: 1}
+                  status: {enum: [PASSED, FAILED, BLOCKED]}
+                  evidence_locator: {type: string, minLength: 1}
+                  evaluation:
+                    type: object
+                    additionalProperties: false
+                    required: [observations]
+                    properties:
+                      observations:
+                        type: object
+                        additionalProperties: true
+            capture:
+              type: object
+              additionalProperties: false
+              required: [viewport, route, captured_at, redacted]
+              properties:
+                viewport: {type: string, minLength: 1}
+                route: {type: string, minLength: 1}
+                captured_at: {type: string, minLength: 1}
+                redacted: {type: boolean}
+$defs:
+  external_verification:
+    type: object
+    additionalProperties: true
+    required: [provider, mode]
+    properties:
+      provider: {type: string, pattern: '^[a-z0-9][a-z0-9._-]*$'}
+      mode: {enum: [stub, contract, real_test_app]}

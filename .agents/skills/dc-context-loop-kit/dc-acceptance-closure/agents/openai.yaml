@@ -1,0 +1,4 @@
+interface:
+  display_name: "验收证据收口"
+  short_description: "审查当前证据并给出二元交付结论"
+  default_prompt: "使用 $dc-acceptance-closure 审查当前测试证据并生成验收结论。"

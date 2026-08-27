@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="delivery-proof-source-sha256" content="b0efcb6a73f38b23716bf1135b36c85a4318739e2cc8af6e4715271bbc4479fa">
+  <title>需求清单</title>
+  <style>
+    :root { --ink:#171b19; --muted:#66706b; --line:#dfe4e1; --paper:#fff; --soft:#f4f6f5; --red:#b42318; --green:#217a4b; --amber:#8a5a00; --blue:#1d4e89; --accent:#2f8f6b; --accent-soft:#eaf8f1; --canvas:#f7f8f7; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-width:0; color:var(--ink); background:var(--canvas); font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif; letter-spacing:0; }
+    a { color:var(--blue); text-decoration:none; } a:hover { text-decoration:underline; }
+    button { font:inherit; letter-spacing:0; }
+    header { border-bottom:1px solid var(--line); background:var(--paper); }
+    .top { width:min(1240px,calc(100% - 48px)); margin:0 auto; padding:28px 0 24px; }
+    .eyebrow { color:var(--red); font-weight:700; text-transform:uppercase; font-size:12px; }
+    h1 { margin:5px 0 8px; font-size:30px; line-height:1.2; letter-spacing:0; }
+    h2 { margin:0 0 16px; font-size:20px; letter-spacing:0; }
+    h3 { margin:0 0 8px; font-size:15px; letter-spacing:0; }
+    p { margin:7px 0; } .sub,.muted-text { color:var(--muted); }
+    main { width:min(1240px,calc(100% - 48px)); margin:0 auto; }
+    nav { display:flex; gap:20px; height:48px; align-items:center; border-bottom:1px solid var(--line); }
+    section { padding:25px 0; border-bottom:1px solid var(--line); }
+    .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); border:1px solid var(--line); background:var(--paper); }
+    .metric { padding:14px 16px; border-right:1px solid var(--line); } .metric:last-child { border-right:0; }
+    .metric strong { display:block; font-size:22px; } .metric span { color:var(--muted); font-size:12px; }
+    table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    th { text-align:left; color:var(--muted); font-size:12px; background:var(--soft); }
+    th,td { padding:10px 12px; border:1px solid var(--line); vertical-align:top; overflow-wrap:anywhere; }
+    .badge { display:inline-flex; align-items:center; min-height:24px; padding:2px 8px; border:1px solid currentColor; border-radius:4px; font-size:12px; white-space:nowrap; }
+    .badge.ok { color:var(--green); background:#f2fbf6; } .badge.warn { color:var(--amber); background:#fff9e9; }
+    .badge.bad { color:var(--red); background:#fff4f2; } .badge.info { color:var(--blue); background:#f2f7fc; } .badge.muted { color:var(--muted); background:var(--soft); }
+    .records { border-top:1px solid var(--line); } .record { display:grid; grid-template-columns:220px 1fr; gap:20px; padding:15px 0; border-bottom:1px solid var(--line); }
+    .mono { font-family:"SFMono-Regular",Consolas,monospace; font-size:12px; }
+    .statement { font-size:15px; } ul { margin:7px 0; padding-left:20px; }
+    .split { display:grid; grid-template-columns:1fr 1fr; gap:32px; }
+    .scenario-result { margin:0 0 14px; padding:13px 15px; border:1px solid #b8cec0; border-left:4px solid var(--green); border-radius:6px; background:#f5faf7; }
+    .scenario-result-label { display:block; margin-bottom:4px; color:var(--green); font-size:12px; font-weight:700; }
+    .scenario-result strong { display:block; font-size:16px; line-height:1.5; }
+    .scenario-fields { display:grid; grid-template-columns:1fr 1fr; column-gap:28px; border-top:1px solid var(--line); }
+    .scenario-field { display:grid; grid-template-columns:88px minmax(0,1fr); gap:10px; align-items:start; padding:12px 0; border-bottom:1px solid var(--line); }
+    .scenario-field.action { grid-column:1 / -1; }
+    .scenario-field-key { color:var(--muted); font-size:12px; font-weight:700; line-height:1.7; }
+    .scenario-field-value { min-width:0; margin:0; line-height:1.7; overflow-wrap:anywhere; }
+    .scenario-field-value ul { margin:0; padding-left:18px; }
+    .scenario-field-value li + li { margin-top:3px; }
+    .implementation-detail { margin-top:18px; padding:15px; border:1px solid var(--line); background:var(--paper); }
+    .implementation-detail > summary { cursor:pointer; font-weight:700; font-size:15px; }
+    .implementation-detail[open] > summary { margin-bottom:14px; }
+    .implementation-slice { padding:15px 0; border-top:1px solid var(--line); }
+    .implementation-slice:first-of-type { border-top:0; }
+    .slice-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+    .slice-heading h3 { margin-bottom:0; }
+    .gherkin-outcomes { margin:0; padding:0; list-style:none; }
+    .gherkin-outcomes li { display:grid; grid-template-columns:94px minmax(0,1fr); gap:10px; padding:4px 0; }
+    .notice { padding:12px 14px; border-left:3px solid var(--amber); background:#fff9e9; }
+    .okline { padding:12px 14px; border-left:3px solid var(--green); background:#f2fbf6; }
+    .verdict { margin:12px 0 4px; padding:12px 14px; border-left:3px solid var(--red); background:#fff4f2; }
+    .verdict.pass { border-left-color:var(--green); background:#f2fbf6; }
+    .verdict p:last-child { margin-bottom:0; }
+    .chain-check { margin:0; padding:18px 0; border:0; border-bottom:1px solid var(--line); background:transparent; }
+    .chain-check:last-child { border-bottom:0; }
+    .chain-check h4 { margin:0 0 5px; font-size:14px; }
+    .chain-runs { margin-top:12px; border-top:1px solid var(--line); }
+    .chain-run { padding:10px 0; border-bottom:1px solid var(--line); }
+    .chain-run:last-child { border-bottom:0; }
+    .chain-run-head { display:flex; flex-wrap:wrap; gap:7px; align-items:center; }
+    .chain-run .mono { overflow-wrap:anywhere; }
+    .run-command { margin:5px 0 0; color:var(--muted); font-family:"SFMono-Regular",Consolas,monospace; font-size:12px; overflow-wrap:anywhere; }
+    .artifact-links { display:inline-flex; flex-wrap:wrap; gap:6px; }
+    .artifact-link { font-family:"SFMono-Regular",Consolas,monospace; font-size:12px; }
+    .assertion-coverage { margin:10px 0 0; padding:0; list-style:none; border-top:1px solid var(--line); }
+    .assertion-coverage li { display:flex; flex-wrap:wrap; align-items:baseline; gap:7px; padding:8px 0; border-bottom:1px solid var(--line); }
+    .assertion-coverage li:last-child { border-bottom:0; }
+    .assertion-description { flex:1 1 360px; min-width:220px; }
+    .assertion-runs { color:var(--muted); font-family:"SFMono-Regular",Consolas,monospace; font-size:12px; }
+    .dependency-checks { margin:10px 0 0; padding:0; list-style:none; border-top:1px solid var(--line); }
+    .dependency-checks li { display:flex; flex-wrap:wrap; align-items:center; gap:7px; padding:8px 0; border-bottom:1px solid var(--line); }
+    .dependency-checks li:last-child { border-bottom:0; }
+    .scenario-browser { display:grid; grid-template-columns:290px minmax(0,1fr); min-height:640px; margin-top:18px; border:1px solid var(--line); background:var(--paper); }
+    .scenario-sidebar { min-width:0; border-right:1px solid var(--line); background:#fafbfa; }
+    .scenario-nav-head { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:56px; padding:14px 16px; border-bottom:1px solid var(--line); }
+    .scenario-nav-head strong { font-size:12px; text-transform:uppercase; }
+    .scenario-nav { display:flex; flex-direction:column; max-height:720px; overflow:auto; }
+    .scenario-nav-item { width:100%; min-height:82px; padding:14px 16px; border:0; border-bottom:1px solid var(--line); color:var(--ink); background:transparent; text-align:left; cursor:pointer; }
+    .scenario-nav-item:hover { background:#f1f5f3; }
+    .scenario-nav-item[aria-selected="true"] { background:var(--accent-soft); box-shadow:inset 3px 0 0 var(--accent); }
+    .scenario-nav-item:focus-visible,.detail-tab:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+    .scenario-nav-line { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
+    .scenario-nav-id { color:var(--muted); font-family:"SFMono-Regular",Consolas,monospace; font-size:11px; }
+    .scenario-nav-title { display:block; font-weight:650; line-height:1.45; overflow-wrap:anywhere; }
+    .scenario-nav-status { font-size:11px; font-weight:700; }
+    .scenario-nav-status.pass { color:var(--green); } .scenario-nav-status.blocked,.scenario-nav-status.fail { color:var(--red); } .scenario-nav-status.pending { color:var(--muted); }
+    .scenario-detail { min-width:0; }
+    .scenario-pane { min-width:0; }
+    .scenario-pane[hidden],.scenario-tab-panel[hidden] { display:none; }
+    .scenario-pane-header { padding:24px 28px 20px; border-bottom:1px solid var(--line); }
+    .scenario-pane-kicker { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:8px; }
+    .scenario-pane-header h3 { margin:0; font-size:23px; line-height:1.3; }
+    .scenario-tabs { display:flex; gap:28px; min-height:50px; padding:0 28px; border-bottom:1px solid var(--line); }
+    .detail-tab { position:relative; padding:0; border:0; color:var(--muted); background:transparent; font-weight:650; cursor:pointer; }
+    .detail-tab[aria-selected="true"] { color:var(--ink); }
+    .detail-tab[aria-selected="true"]::after { position:absolute; right:0; bottom:-1px; left:0; height:2px; background:var(--accent); content:""; }
+    .scenario-tab-panel { padding:24px 28px 32px; }
+    .scenario-check-summary { display:flex; align-items:center; justify-content:space-between; gap:16px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+    .scenario-check-summary p { color:var(--muted); }
+    footer { width:min(1240px,calc(100% - 48px)); margin:0 auto; padding:22px 0 40px; color:var(--muted); font-size:12px; }
+    @media (max-width:900px) {
+      .top,main,footer { width:min(100% - 32px,760px); }
+      .split,.record,.scenario-fields { grid-template-columns:1fr; }
+      .scenario-field.action { grid-column:auto; }
+      .scenario-browser { grid-template-columns:1fr; min-height:0; }
+      .scenario-sidebar { border-right:0; border-bottom:1px solid var(--line); }
+      .scenario-nav { flex-direction:row; max-height:none; overflow-x:auto; overflow-y:hidden; }
+      .scenario-nav-item { flex:0 0 230px; min-height:92px; border-right:1px solid var(--line); border-bottom:0; }
+      .scenario-nav-item[aria-selected="true"] { box-shadow:inset 0 -3px 0 var(--accent); }
+    }
+    @media (max-width:560px) {
+      .top,main,footer { width:calc(100% - 24px); }
+      .top { padding:22px 0 18px; }
+      h1 { font-size:25px; } h2 { font-size:18px; }
+      nav { height:auto; min-height:48px; flex-wrap:wrap; padding:10px 0; }
+      section { padding:20px 0; }
+      .metrics { grid-template-columns:1fr 1fr; }
+      .metric:nth-child(2n) { border-right:0; }
+      .scenario-pane-header,.scenario-tab-panel { padding-right:18px; padding-left:18px; }
+      .scenario-tabs { gap:22px; padding:0 18px; overflow-x:auto; }
+      .scenario-pane-header h3 { font-size:20px; }
+    }
+  </style>
+</head>
+<body><header><div class="top"><div class="eyebrow">Delivery Proof · REQ 顶层视图</div><h1>需求清单</h1><p class="sub">清单由各 REQ 的当前完整定义派生；Issue 评论时间线保存历史。</p></div></header>
+    <main><nav><a href="需求清单.md">查看派生 Markdown</a></nav>
+    <section><div class="metrics"><div class="metric"><strong>1</strong><span>REQ 总数</span></div><div class="metric"><strong>1</strong><span>需求已确认</span></div><div class="metric"><strong>0</strong><span>需求待确认</span></div><div class="metric"><strong>0</strong><span>已验收</span></div></div></section>
+    <section><h2>独立需求</h2><table><colgroup><col style="width:260px"><col style="width:120px"><col style="width:145px"><col></colgroup><thead><tr><th>REQ</th><th>需求状态</th><th>交付阶段</th><th>标题与价值</th></tr></thead><tbody><tr><td class="mono"><a href="REQ-DC-CONTEXT-LOOP-SEMANTIC/审核工作台.html">REQ-DC-CONTEXT-LOOP-SEMANTIC</a></td>
+        <td><span class="badge ok">CONFIRMED</span></td>
+        <td><span class="badge info">待验证</span></td>
+        <td><strong>由模型基于完整历史理解并路由技能迭代</strong><div class="muted-text">让技能迭代依据完整沟通历史和当前工程事实进行语义决策，避免机械快照合并误导后续动作，并减少重复的 SPEC 人工门禁。</div></td></tr></tbody></table></section></main><footer>只读派生视图 · 内容来自各 REQ 根目录当前 Markdown 定义 · source b0efcb6a73f3</footer>
+<script>
+(() => {
+  const scenarioTabs = [...document.querySelectorAll('[data-scenario-target]')];
+  const scenarioPanes = [...document.querySelectorAll('.scenario-pane')];
+
+  function activateDetailTab(tab, focus = false) {
+    const pane = tab.closest('.scenario-pane');
+    if (!pane) return;
+    const target = tab.dataset.viewTarget;
+    pane.querySelectorAll('[data-view-target]').forEach(item => item.setAttribute('aria-selected', String(item === tab)));
+    pane.querySelectorAll('.scenario-tab-panel').forEach(panel => { panel.hidden = panel.dataset.viewPanel !== target; });
+    if (focus) tab.focus();
+  }
+
+  function activateScenario(tab, focus = false, updateHash = false) {
+    const target = tab.dataset.scenarioTarget;
+    scenarioTabs.forEach(item => item.setAttribute('aria-selected', String(item === tab)));
+    scenarioPanes.forEach(pane => { pane.hidden = pane.id !== target; });
+    if (focus) tab.focus();
+    if (updateHash) history.replaceState(null, '', '#' + target.replace(/^scenario-/, ''));
+  }
+
+  function bindArrowKeys(tabs, activate) {
+    tabs.forEach((tab, index) => tab.addEventListener('keydown', event => {
+      let next = null;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+      if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+      if (event.key === 'Home') next = 0;
+      if (event.key === 'End') next = tabs.length - 1;
+      if (next === null) return;
+      event.preventDefault();
+      activate(tabs[next], true, true);
+    }));
+  }
+
+  scenarioTabs.forEach(tab => tab.addEventListener('click', () => activateScenario(tab, false, true)));
+  bindArrowKeys(scenarioTabs, activateScenario);
+  scenarioPanes.forEach(pane => {
+    const detailTabs = [...pane.querySelectorAll('[data-view-target]')];
+    detailTabs.forEach(tab => tab.addEventListener('click', () => activateDetailTab(tab)));
+    bindArrowKeys(detailTabs, activateDetailTab);
+  });
+
+  function openHashTarget() {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const target = id ? document.getElementById(id) : null;
+    if (!target) return false;
+    const pane = target.classList.contains('scenario-pane') ? target : target.closest('.scenario-pane');
+    if (!pane) return false;
+    const scenarioTab = scenarioTabs.find(tab => tab.dataset.scenarioTarget === pane.id);
+    if (scenarioTab) activateScenario(scenarioTab);
+    if (target.classList.contains('chain-check')) {
+      const checksTab = pane.querySelector('[data-view-target="checks"]');
+      if (checksTab) activateDetailTab(checksTab);
+    }
+    requestAnimationFrame(() => target.scrollIntoView({block:'start'}));
+    return true;
+  }
+
+  if (!openHashTarget() && scenarioTabs[0]) activateScenario(scenarioTabs[0]);
+  window.addEventListener('hashchange', openHashTarget);
+})();
+</script></body>
+</html>

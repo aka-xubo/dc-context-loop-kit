@@ -1,0 +1,11 @@
+version: 1
+failure_types:
+  BEHAVIOR_MISMATCH: 实际行为不符合已确认验收场景
+  TEST_NOT_RUN: 必需测试尚未执行
+  TEST_FAILED: 测试执行失败且未形成有效业务观察
+  ENVIRONMENT_BLOCKED: 测试环境或验证系统阻塞
+  EVIDENCE_INSUFFICIENT: 测试通过但断言或证据不足
+  EVIDENCE_INVALID: 证据不可解析、不可复核或来源无效
+  REGRESSION_FAILED: 必需回归测试失败
+  TEST_DATA_PREFIX_INVALID: 测试数据缺少合法可识别前缀
+  TEST_DATA_CLEANUP_FAILED: 测试数据未能完成定向清理
