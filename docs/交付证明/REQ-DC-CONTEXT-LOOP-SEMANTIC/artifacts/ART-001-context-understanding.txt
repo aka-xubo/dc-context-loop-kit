@@ -1,0 +1,9 @@
+Command: dc-context-loop 处理 HTW-1671；dc-issue-intake 实时读取 Issue 和全部评论，覆盖状态 FULL，共读取 1 页、4 条评论。
+已确认事实：EVT-HTW-1671-REQ-002 是当前 REQ；EVT-HTW-1671-SPEC-001 是用户已确认的完整 SPEC；EVT-HTW-1671-IMP-001 绑定 commit afcd4f3ee4dcfca27195132d41e60ec2b697d60d 且状态 READY。
+普通讨论：用户对确认人、确认时间、优先级占位和仓库归属的讨论本身不作为隐藏状态；其中明确指令通过后续定义或实现事实落实。
+用户最新指令：继续处理，并明确技能包必须属于 infrastructure/dc-loop 独立仓库。
+当前适用定义：REQ-DC-CONTEXT-LOOP-SEMANTIC；SCN-001 至 SCN-005；CHK-001 至 CHK-005；AST-001 至 AST-009。
+冲突：无。历史 REQ-001 已被包含单次 SPEC 确认要求的 REQ-002 更新；当前 SPEC 和实现均引用后者。
+未决问题：无。仓库地址、SPEC 确认和验收授权均已由用户明确给出。
+真实阻塞：无。实现 commit、测试环境和本地审核页均可用。
+依据：Issue 评论 a6645766-5547-47d1-873b-616f72877875、f386a902-35b4-46b8-baf5-5237a5df5f90、d7675edb-4f7d-462f-af64-48e236e52265、dde3346b-c5ac-493b-a06a-4e31c06db778；当前用户指令；README.md；dc-context-loop/SKILL.md 第 40-69 行。
