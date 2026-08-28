@@ -53,16 +53,33 @@ description: 基于 Deep Crew Issue 评论时间线持续推进需求、验收�
 
 然后模型负责判断：
 
-1. 用户最新消息是否改变业务目标、范围、约束、失败行为或验收语义；
-2. 当前最小责任节点是 `REQ`、`SPEC`、`IMPLEMENTATION` 还是 `ACCEPTANCE`；
-3. 是否存在会改变当前结果的高影响歧义，需要调用 `dc-grilling`；
-4. 当前可以安全执行的下一步、所需负责人和必要门禁。
+1. 先判断用户最新消息是否改变业务目标、业务结果、范围、约束或失败规则；
+2. 只有业务承诺未变化时，再判断场景、参与者、条件、动作、结果、CHK、AST、验证责任或验证方式是否变化；
+3. 只有 REQ 和 SPEC 都未变化时，才判断是否只是代码、测试或环境变化；
+4. 据此选择当前最小责任节点 `REQ`、`SPEC`、`IMPLEMENTATION` 或 `ACCEPTANCE`；
+5. 判断是否存在会改变当前结果的高影响歧义，需要调用 `dc-grilling`；
+6. 判断当前可以安全执行的下一步、所需负责人和必要门禁。
+
+判定结果必须遵守以下优先级：
+
+```text
+业务目标、业务结果、范围、约束或失败规则变化
+  → REQUIREMENT_CHANGE；若形成独立业务结果则为 NEW_REQUIREMENT
+业务承诺不变，但场景、CHK、AST、验证责任或验证方式变化
+  → SPEC_CHANGE
+REQ 和 SPEC 都不变，只改代码、测试或环境
+  → IMPLEMENTATION_ONLY
+以上都未变化
+  → NO_REQUIREMENT_CHANGE
+```
+
+`SPEC_CHANGE` 表示当前验收定义变化，不表示修改或删除历史 SPEC 事件。已确认的 SPEC 发生变化时，应发布新的完整 SPEC 快照；旧快照保留为历史事实。
 
 模型的路由输出至少包含：
 
 ```text
 当前上下文：基于完整历史的事实、决策、适用定义和阻塞摘要
-需求变化判断：NEW_REQUIREMENT / REQUIREMENT_CHANGE / NO_REQUIREMENT_CHANGE / IMPLEMENTATION_ONLY
+需求变化判断：NEW_REQUIREMENT / REQUIREMENT_CHANGE / SPEC_CHANGE / IMPLEMENTATION_ONLY / NO_REQUIREMENT_CHANGE
 当前节点：REQ / SPEC / IMPLEMENTATION / ACCEPTANCE
 追问判断：不需要，或需要澄清的高影响问题
 下一步：一个最小可执行动作及其负责人
@@ -187,7 +204,7 @@ REQ/SPEC 每次都发布当时的完整内容。模型结合完整评论时间�
 
 ### 2. 判断新输入归属
 
-模型先按上述上下文理解契约判断新信息属于 `REQ`、`SPEC`、`IMPLEMENTATION` 或 `ACCEPTANCE` 哪个交付内容节点。内容不清、存在多个合理解释或需要负责人决策时，先调用 `dc-grilling` 在当前对话中澄清；讨论足够清晰后直接生成目标内容节点事件，不发布讨论事件。如果反馈改变业务目标、范围或结果，不能伪装成代码修复；如果已有 SPEC 已覆盖期望但实现错误，直接归入 IMPLEMENTATION；如果定义无法裁决验收，则先澄清 SPEC 或 REQ。
+模型先按上述上下文理解契约判断新信息属于 `REQ`、`SPEC`、`IMPLEMENTATION` 或 `ACCEPTANCE` 哪个交付内容节点。内容不清、存在多个合理解释或需要负责人决策时，先调用 `dc-grilling` 在当前对话中澄清；讨论足够清晰后直接生成目标内容节点事件，不发布讨论事件。业务承诺变化不能伪装成 SPEC 或代码修复；业务承诺不变但验收定义变化时归入 SPEC；如果已有 SPEC 已覆盖期望但实现错误，归入 IMPLEMENTATION；如果定义无法裁决验收，则先澄清 SPEC 或 REQ。
 
 ### 3. 发布完整定义或完成事实
 

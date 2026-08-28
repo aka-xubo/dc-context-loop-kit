@@ -14,6 +14,18 @@
       "files": []
     },
     {
+      "id": 5,
+      "prompt": "当前业务目标、范围和失败规则不变，但新增一个错误密码场景和对应 AST。继续这个 Issue。",
+      "expected_output": "判断为 SPEC_CHANGE，调用 dc-acceptance-design 生成新的完整 SPEC；不发布新的 REQ。",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "当前 REQ 和 SPEC 都不变，只把实现使用的 JWT 库从 A 换成 B，外部行为不变。继续这个 Issue。",
+      "expected_output": "判断为 IMPLEMENTATION_ONLY，保留当前 REQ/SPEC，进入实现或重新验收。",
+      "files": []
+    },
+    {
       "id": 3,
       "prompt": "根据这个 Issue 的全部评论恢复当前上下文。后一条 SPEC 评论重新给出了一份完整场景集合，并使用了不同的 AST ID。",
       "expected_output": "阅读完整时间线、本地相关材料和用户最新指令，由模型判断当前适用的 SPEC，区分普通讨论与已确认事实，输出当前上下文、节点和下一步，而不是由脚本按时间自动选择。",

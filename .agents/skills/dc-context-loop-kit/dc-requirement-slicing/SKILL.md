@@ -11,13 +11,16 @@ description: 判断输入是新增 REQ、修改当前定义，还是纯实现变
 
 判定顺序：
 
-1. 只改变实现、测试或环境，且验收裁决不变：`IMPLEMENTATION_ONLY`，不改 REQ/SCN/CHK。
-2. 新输入可由当前验收契约推出：`NO_REQUIREMENT_CHANGE`。
-3. 改变现有 DRAFT 的同一业务责任：重新整理并发布一份当前完整 REQ。
-4. 改变已确认或已验收 REQ/SCN/CHK 的语义：重新整理并发布一份当前完整 REQ；由总协调器根据最新时间线决定后续 SPEC 和验收动作。
-5. 只有形成独立验收、交付和回滚的业务结果：`NEW_REQUIREMENT`。
+1. 先判断业务目标、业务结果、范围、约束或失败规则是否变化：
+   - 形成独立验收、交付和回滚的业务结果：`NEW_REQUIREMENT`；
+   - 同一业务责任的承诺发生变化：`REQUIREMENT_CHANGE`，重新整理并发布当前完整 REQ。
+2. 业务承诺不变，但场景、参与者、条件、动作、结果、CHK、AST、验证责任或验证方式变化：`SPEC_CHANGE`，由 `dc-acceptance-design` 重新整理并发布当前完整 SPEC。
+3. REQ 和 SPEC 都不变，只改变实现、测试或环境，且验收裁决不变：`IMPLEMENTATION_ONLY`，不改 REQ/SPEC。
+4. 新输入可由当前 REQ 和 SPEC 完整推出，且没有实现变更：`NO_REQUIREMENT_CHANGE`。
 
-“以前没明确、现在明确”本身不是新 REQ 或新定义的充分理由；必须说明它是否改变了现有 SCN/CHK 的可观察裁决。
+`SPEC_CHANGE` 是验收定义变化，不要求删除或覆盖旧 SPEC 事件；已确认 SPEC 变化时发布新的完整快照。只有业务承诺变化才发布 REQ。
+
+“以前没明确、现在明确”本身不是新 REQ 或 SPEC_CHANGE 的充分理由；必须说明它是否改变了现有业务承诺或 SCN/CHK 的可观察裁决。
 
 ## 业务依赖
 

@@ -172,6 +172,14 @@ def acceptance_event(
         },
     }
 class ContextLoopTest(unittest.TestCase):
+    def test_routing_contract_distinguishes_spec_change(self) -> None:
+        loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        slicing_skill = (SCRIPT_DIR.parent.parent / "dc-requirement-slicing" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("SPEC_CHANGE", loop_skill)
+        self.assertIn("业务承诺不变，但场景、CHK、AST、验证责任或验证方式变化", loop_skill)
+        self.assertIn("SPEC_CHANGE", slicing_skill)
+        self.assertIn("只有业务承诺变化才发布 REQ", slicing_skill)
+
     def test_snapshot_rejects_unknown_fields(self) -> None:
         document = requirement_event("EVT-REQ-WITH-UNKNOWN")
         document["event"]["legacy"] = {"value": "不属于当前事件结构"}
