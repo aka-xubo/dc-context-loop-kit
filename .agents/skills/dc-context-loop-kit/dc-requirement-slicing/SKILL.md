@@ -14,11 +14,11 @@ description: 判断输入是新增 REQ、修改当前定义，还是纯实现变
 1. 先判断业务目标、业务结果、范围、约束或失败规则是否变化：
    - 形成独立验收、交付和回滚的业务结果：`NEW_REQUIREMENT`；
    - 同一业务责任的承诺发生变化：`REQUIREMENT_CHANGE`，重新整理并发布当前完整 REQ。
-2. 业务承诺不变，但场景、参与者、条件、动作、结果、CHK、AST、验证责任或验证方式变化：`SPEC_CHANGE`，由 `dc-acceptance-design` 重新整理并发布当前完整 SPEC。
+2. 业务承诺不变，但场景、参与者、条件、动作、结果、CHK、AST、验证责任或验证方式变化：`SPEC_CHANGE`，由 `dc-acceptance-design` 相对最新已确认 SPEC 整理并发布增量；仅在需要重建基线时发布完整 SPEC。
 3. REQ 和 SPEC 都不变，只改变实现、测试或环境，且验收裁决不变：`IMPLEMENTATION_ONLY`，不改 REQ/SPEC。
 4. 新输入可由当前 REQ 和 SPEC 完整推出，且没有实现变更：`NO_REQUIREMENT_CHANGE`。
 
-`SPEC_CHANGE` 是验收定义变化，不要求删除或覆盖旧 SPEC 事件；已确认 SPEC 变化时发布新的完整快照。只有业务承诺变化才发布 REQ。
+`SPEC_CHANGE` 是验收定义变化，不要求删除或覆盖旧 SPEC 事件；已确认 SPEC 变化时默认发布新的增量，引用基础 SPEC 并只记录新增、修改、删除。只有业务承诺变化才发布 REQ。
 
 “以前没明确、现在明确”本身不是新 REQ 或 SPEC_CHANGE 的充分理由；必须说明它是否改变了现有业务承诺或 SCN/CHK 的可观察裁决。
 

@@ -96,6 +96,10 @@ $defs:
       constraints: {type: array, items: {type: string, minLength: 1}}
       open_questions: {type: array, items: {type: string, minLength: 1}}
   specification_snapshot:
+    oneOf:
+      - {$ref: '#/$defs/specification_full_snapshot'}
+      - {$ref: '#/$defs/specification_delta'}
+  specification_full_snapshot:
     type: object
     additionalProperties: false
     required: [requirement_ref, scenarios, checks, assertions, open_questions]
@@ -114,6 +118,37 @@ $defs:
         minItems: 1
         items: {$ref: '#/$defs/assertion'}
       open_questions: {type: array, items: {type: string, minLength: 1}}
+  specification_delta:
+    type: object
+    additionalProperties: false
+    required: [requirement_ref, base_spec_ref, changes, open_questions]
+    properties:
+      requirement_ref: {type: string, pattern: '^REQ-[A-Za-z0-9_-]+$'}
+      base_spec_ref: {type: string, pattern: '^SPEC-[A-Za-z0-9_-]+$'}
+      changes:
+        type: object
+        additionalProperties: false
+        required: [added, modified, removed]
+        properties:
+          added: {$ref: '#/$defs/specification_changeset'}
+          modified: {$ref: '#/$defs/specification_changeset'}
+          removed:
+            type: object
+            additionalProperties: false
+            required: [scenarios, checks, assertions]
+            properties:
+              scenarios: {type: array, items: {type: string, pattern: '^SCN-[A-Za-z0-9_-]+$'}}
+              checks: {type: array, items: {type: string, pattern: '^CHK-[A-Za-z0-9_-]+$'}}
+              assertions: {type: array, items: {type: string, pattern: '^AST-[A-Za-z0-9_-]+$'}}
+      open_questions: {type: array, items: {type: string, minLength: 1}}
+  specification_changeset:
+    type: object
+    additionalProperties: false
+    required: [scenarios, checks, assertions]
+    properties:
+      scenarios: {type: array, items: {$ref: '#/$defs/scenario'}}
+      checks: {type: array, items: {$ref: '#/$defs/check'}}
+      assertions: {type: array, items: {$ref: '#/$defs/assertion'}}
   scenario:
     type: object
     additionalProperties: false

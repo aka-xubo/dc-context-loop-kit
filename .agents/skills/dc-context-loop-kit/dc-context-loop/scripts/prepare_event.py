@@ -88,6 +88,12 @@ def validate_requirement(requirement: Any) -> None:
 
 def validate_specification(specification: Any) -> None:
     require(isinstance(specification, dict), "SPEC 缺少完整 specification")
+    require("requirement_ref" in specification, "specification 缺少字段: requirement_ref")
+    require(isinstance(specification["requirement_ref"], str) and REQ_ID_RE.fullmatch(specification["requirement_ref"]), "specification.requirement_ref 必须为 REQ-*")
+    if "changes" in specification:
+        validate_specification_delta(specification)
+        return
+    ensure_keys(specification, {"requirement_ref", "scenarios", "checks", "assertions", "open_questions"}, "specification")
     for field in ("requirement_ref", "scenarios", "checks", "assertions", "open_questions"):
         require(field in specification, f"specification 缺少字段: {field}")
     require(isinstance(specification["requirement_ref"], str) and REQ_ID_RE.fullmatch(specification["requirement_ref"]), "specification.requirement_ref 必须为 REQ-*")
@@ -151,6 +157,101 @@ def validate_specification(specification: Any) -> None:
         nonempty(assertion["description"], f"assertions[{index}].description")
         assertion_ids.append(assertion["id"])
     require(len(assertion_ids) == len(set(assertion_ids)), "specification.assertions ID 不能重复")
+
+
+def validate_delta_scenario(scenario: Any, label: str) -> str:
+    require(isinstance(scenario, dict), f"{label} 必须是对象")
+    for field in ("id", "title", "business_result", "given", "when", "then", "delivery_surfaces"):
+        require(field in scenario, f"{label} 缺少字段: {field}")
+    require(isinstance(scenario["id"], str) and SCN_ID_RE.fullmatch(scenario["id"]), f"{label}.id 必须为 SCN-*")
+    nonempty(scenario["title"], f"{label}.title")
+    nonempty(scenario["business_result"], f"{label}.business_result")
+    string_list(scenario["given"], f"{label}.given")
+    nonempty(scenario["when"], f"{label}.when")
+    require(isinstance(scenario["then"], list) and scenario["then"], f"{label}.then 必须是非空数组")
+    string_list(scenario["delivery_surfaces"], f"{label}.delivery_surfaces")
+    then_ids = []
+    for index, outcome in enumerate(scenario["then"]):
+        require(isinstance(outcome, dict), f"{label}.then[{index}] 必须是对象")
+        require(isinstance(outcome.get("id"), str) and THEN_ID_RE.fullmatch(outcome["id"]), f"{label}.then[{index}].id 必须为 THEN-*")
+        nonempty(outcome.get("statement"), f"{label}.then[{index}].statement")
+        then_ids.append(outcome["id"])
+    require(len(then_ids) == len(set(then_ids)), f"{label} 的 THEN ID 不能重复")
+    return scenario["id"]
+
+
+def validate_delta_check(check: Any, label: str) -> str:
+    require(isinstance(check, dict), f"{label} 必须是对象")
+    for field in ("id", "scenario_ids", "verification_type", "responsibility", "required", "blocking"):
+        require(field in check, f"{label} 缺少字段: {field}")
+    require(isinstance(check["id"], str) and CHK_ID_RE.fullmatch(check["id"]), f"{label}.id 必须为 CHK-*")
+    require(isinstance(check["scenario_ids"], list) and check["scenario_ids"], f"{label}.scenario_ids 必须是非空数组")
+    for scenario_id in check["scenario_ids"]:
+        require(isinstance(scenario_id, str) and SCN_ID_RE.fullmatch(scenario_id), f"{label}.scenario_ids 包含非法 SCN ID")
+    require(check["verification_type"] in {"unit", "api", "ui", "e2e"}, f"{label}.verification_type 非法")
+    nonempty(check["responsibility"], f"{label}.responsibility")
+    require(isinstance(check["required"], bool), f"{label}.required 必须是布尔值")
+    require(isinstance(check["blocking"], bool), f"{label}.blocking 必须是布尔值")
+    return check["id"]
+
+
+def validate_delta_assertion(assertion: Any, label: str) -> str:
+    require(isinstance(assertion, dict), f"{label} 必须是对象")
+    for field in ("id", "check_id", "outcome_refs", "assertion_type", "description"):
+        require(field in assertion, f"{label} 缺少字段: {field}")
+    require(isinstance(assertion["id"], str) and AST_ID_RE.fullmatch(assertion["id"]), f"{label}.id 必须为 AST-*")
+    require(isinstance(assertion["check_id"], str) and CHK_ID_RE.fullmatch(assertion["check_id"]), f"{label}.check_id 必须为 CHK-*")
+    require(isinstance(assertion["outcome_refs"], list) and assertion["outcome_refs"], f"{label}.outcome_refs 必须是非空数组")
+    for outcome_ref in assertion["outcome_refs"]:
+        require(isinstance(outcome_ref, str) and re.fullmatch(r"SCN-[A-Za-z0-9_-]+\.THEN-[A-Za-z0-9_-]+", outcome_ref), f"{label}.outcome_refs 包含非法结果引用")
+    require(assertion["assertion_type"] in {"semantic", "predicate"}, f"{label}.assertion_type 非法")
+    nonempty(assertion["description"], f"{label}.description")
+    return assertion["id"]
+
+
+def validate_specification_delta(specification: dict[str, Any]) -> None:
+    ensure_keys(specification, {"requirement_ref", "base_spec_ref", "changes", "open_questions"}, "specification")
+    for field in ("base_spec_ref", "changes", "open_questions"):
+        require(field in specification, f"增量 specification 缺少字段: {field}")
+    require(isinstance(specification["base_spec_ref"], str) and re.fullmatch(r"SPEC-[A-Za-z0-9_-]+", specification["base_spec_ref"]), "specification.base_spec_ref 必须为 SPEC-*")
+    string_list(specification["open_questions"], "specification.open_questions")
+    changes = specification["changes"]
+    require(isinstance(changes, dict), "specification.changes 必须是对象")
+    ensure_keys(changes, {"added", "modified", "removed"}, "specification.changes")
+    for kind in ("added", "modified", "removed"):
+        require(kind in changes, f"specification.changes 缺少字段: {kind}")
+        require(isinstance(changes[kind], dict), f"specification.changes.{kind} 必须是对象")
+        ensure_keys(changes[kind], {"scenarios", "checks", "assertions"}, f"specification.changes.{kind}")
+        for object_type in ("scenarios", "checks", "assertions"):
+            require(object_type in changes[kind], f"specification.changes.{kind} 缺少字段: {object_type}")
+            require(isinstance(changes[kind][object_type], list), f"specification.changes.{kind}.{object_type} 必须是数组")
+
+    validators = {
+        "scenarios": validate_delta_scenario,
+        "checks": validate_delta_check,
+        "assertions": validate_delta_assertion,
+    }
+    ids_by_kind: dict[str, set[str]] = {"added": set(), "modified": set(), "removed": set()}
+    for kind in ("added", "modified"):
+        for object_type, validator in validators.items():
+            for index, item in enumerate(changes[kind][object_type]):
+                label = f"specification.changes.{kind}.{object_type}[{index}]"
+                object_id = validator(item, label)
+                require(object_id not in ids_by_kind[kind], f"增量 {kind} 中 ID 不能重复: {object_id}")
+                ids_by_kind[kind].add(object_id)
+
+    removed_patterns = {"scenarios": SCN_ID_RE, "checks": CHK_ID_RE, "assertions": AST_ID_RE}
+    for object_type, pattern in removed_patterns.items():
+        for index, object_id in enumerate(changes["removed"][object_type]):
+            label = f"specification.changes.removed.{object_type}[{index}]"
+            require(isinstance(object_id, str) and pattern.fullmatch(object_id), f"{label} 必须为合法 ID")
+            require(object_id not in ids_by_kind["removed"], f"增量 removed 中 ID 不能重复: {object_id}")
+            ids_by_kind["removed"].add(object_id)
+
+    require(any(ids_by_kind.values()), "增量 specification 至少需要一项变化")
+    require(not (ids_by_kind["added"] & ids_by_kind["modified"]), "同一 ID 不能同时新增和修改")
+    require(not (ids_by_kind["added"] & ids_by_kind["removed"]), "同一 ID 不能同时新增和删除")
+    require(not (ids_by_kind["modified"] & ids_by_kind["removed"]), "同一 ID 不能同时修改和删除")
 
 
 def validate(event: dict[str, Any]) -> dict[str, Any]:
@@ -425,6 +526,99 @@ def render_acceptance(event: dict[str, Any]) -> str:
 
 def render_spec(event: dict[str, Any]) -> str:
     specification = event["specification"]
+    if "changes" in specification:
+        changes = specification["changes"]
+        def ids_or_none(items: list[Any]) -> str:
+            return "、".join(item if isinstance(item, str) else item.get("id", "") for item in items) or "无"
+        def objects_text(object_type: str, items: list[dict[str, Any]]) -> str:
+            if not items:
+                return "无"
+            if object_type == "scenarios":
+                return "\n\n".join(
+                    f"### {item['id']} {item['title']}\n\n"
+                    f"- 业务结果：{item['business_result']}\n"
+                    f"- Given：{'；'.join(item['given']) or '无'}\n"
+                    f"- When：{item['when']}\n"
+                    f"- Then：{'；'.join(outcome['id'] + ' ' + outcome['statement'] for outcome in item['then'])}\n"
+                    f"- 交付面：{', '.join(item['delivery_surfaces']) or '无'}"
+                    for item in items
+                )
+            if object_type == "checks":
+                return "\n".join(
+                    f"| `{item['id']}` | {', '.join(item['scenario_ids'])} | {item['verification_type']} | {item['responsibility']} | "
+                    f"{'是' if item['required'] else '否'} | {'是' if item['blocking'] else '否'} |"
+                    for item in items
+                )
+            return "\n".join(
+                f"| `{item['id']}` | {item['check_id']} | {', '.join(item['outcome_refs'])} | "
+                f"{item['assertion_type']} | {item['description']} |"
+                for item in items
+            )
+
+        added = changes["added"]
+        modified = changes["modified"]
+        removed = changes["removed"]
+        return f"""[DP:SPEC] 验收规格增量
+
+## 关联需求
+
+{specification['requirement_ref']}
+
+## 基础 SPEC
+
+{specification['base_spec_ref']}
+
+## 发布说明
+
+{event['reason']}
+
+## 新增
+
+### 场景
+
+{objects_text('scenarios', added['scenarios'])}
+
+### 检查责任
+
+| CHK | 场景 | 类型 | 责任 | 必需 | 阻断 |
+|---|---|---|---|---|---|
+{objects_text('checks', added['checks'])}
+
+### 原子断言
+
+| AST | CHK | 结果引用 | 类型 | 描述 |
+|---|---|---|---|---|
+{objects_text('assertions', added['assertions'])}
+
+## 修改
+
+### 场景
+
+{objects_text('scenarios', modified['scenarios'])}
+
+### 检查责任
+
+| CHK | 场景 | 类型 | 责任 | 必需 | 阻断 |
+|---|---|---|---|---|---|
+{objects_text('checks', modified['checks'])}
+
+### 原子断言
+
+| AST | CHK | 结果引用 | 类型 | 描述 |
+|---|---|---|---|---|
+{objects_text('assertions', modified['assertions'])}
+
+## 删除
+
+- 场景：{ids_or_none(removed['scenarios'])}
+- 检查：{ids_or_none(removed['checks'])}
+- 断言：{ids_or_none(removed['assertions'])}
+
+## 未决事项
+
+{list_text(specification['open_questions'])}
+
+{render_machine_block(event)}"""
     scenarios = "\n\n".join(
         f"### {scenario['id']} {scenario['title']}\n\n"
         f"- 业务结果：{scenario['business_result']}\n"

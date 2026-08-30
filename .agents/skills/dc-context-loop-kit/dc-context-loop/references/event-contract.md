@@ -18,7 +18,7 @@
 
 事件只支持四种 `node`：`REQ`、`SPEC`、`IMPLEMENTATION`、`ACCEPTANCE`。
 
-REQ 和 SPEC 是完整定义事件：每条事件都携带发布时的完整内容。模型阅读完整评论时间线后，结合普通讨论和用户最新指令判断哪份定义仍然适用。事件只包含该节点定义的字段。
+REQ 是完整定义事件。SPEC 首次建立或需要重建基线时使用完整快照，后续变化默认使用相对基础 SPEC 的增量事件。模型阅读完整评论时间线后，结合普通讨论和用户最新指令应用增量并判断哪份定义仍然适用。事件只包含该节点定义的字段。
 
 快照内的 `REQ-*`、`SCN-*`、`CHK-*`、`AST-*` 只用于当前内容的引用。下一条 REQ/SPEC 可以继续使用原 ID，也可以重建对象集合并使用新 ID；模型根据完整历史判断当前适用的定义。
 
@@ -49,7 +49,9 @@ event:
 
 人类评论展示需求目标、需求陈述、业务结果、范围、约束、未决事项和发布说明。需求讨论在当前对话中完成；需要长期追溯的决策直接进入这份完整快照。
 
-## SPEC 完整快照
+## SPEC 完整快照或增量
+
+首次建立规格或无法可靠以增量表达时，使用完整快照：
 
 ```yaml
 event:
@@ -86,7 +88,20 @@ event:
     open_questions: []
 ```
 
-人类评论展示当前完整场景、检查责任、原子断言、引用关系和未决事项。下一份 SPEC 可以整体重写场景集合，不生成差异表。
+后续规格变化默认使用增量，仅记录相对基础 SPEC 的新增、修改、删除：
+
+```yaml
+specification:
+  requirement_ref: REQ-001
+  base_spec_ref: SPEC-002
+  changes:
+    added: {scenarios: [], checks: [], assertions: []}
+    modified: {scenarios: [], checks: [], assertions: []}
+    removed: {scenarios: [SCN-001], checks: [], assertions: []}
+  open_questions: []
+```
+
+新增和修改对象使用完整结构并保留稳定 ID；删除只列出对象 ID；同一 ID 不得同时出现在多个操作中，且至少有一项变化。人类评论按事件形态展示当前完整场景、检查责任、原子断言，或增量的基础 SPEC、新增、修改、删除和未决事项。模型负责将增量应用到基础 SPEC；准备脚本只校验和渲染，不读取历史或自动合并。
 
 ## IMPLEMENTATION 与 ACCEPTANCE
 

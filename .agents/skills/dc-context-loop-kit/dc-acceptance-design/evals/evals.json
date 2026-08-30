@@ -4,23 +4,23 @@
     {
       "id": 1,
       "prompt": "REQ-REFUND 已确认：管理员可以撤回尚未执行的审批任务。其他角色、重复撤回和日志规则未定义。请生成验收场景。",
-      "expected_output": "生成包含场景和矩阵草案的完整 SPEC，等待一次人工确认。每个 SCN 直接定义业务结果，并把无法推出的规则留在 open_questions。",
+      "expected_output": "生成包含场景和矩阵草案的首次完整 SPEC，等待一次人工确认。每个 SCN 直接定义业务结果，并把无法推出的规则留在 open_questions。",
       "files": [],
       "expectations": ["每个 SCN 定义一个 business_result", "未发明重复撤回规则", "场景和矩阵共同等待一次 SPEC 确认"]
     },
     {
       "id": 2,
       "prompt": "REQ-REFUND 已确认。请生成包含合法退款、已发货拒绝和无权限拒绝场景，以及对应 CHK/AST 的完整 SPEC。",
-      "expected_output": "生成场景和矩阵文件 DRAFT，只定义 SCN/CHK/AST，不写执行状态，并等待一次完整 SPEC 确认。",
+      "expected_output": "生成场景和矩阵文件 DRAFT，只定义 SCN/CHK/AST，不写执行状态，并等待一次 SPEC 确认。",
       "files": [],
       "expectations": ["每个场景至少一个必需 CHK", "AST ID 稳定", "矩阵不含 RUN 或最终裁决", "场景和矩阵共同等待一次确认"]
     },
     {
       "id": 3,
       "prompt": "已确认场景只写了退款成功，没有定义状态或响应结果。请继续生成矩阵。",
-      "expected_output": "拒绝发明业务结果，重新整理包含场景和矩阵的当前完整 SPEC，并等待一次确认。",
+      "expected_output": "拒绝发明业务结果，重新整理包含场景和矩阵的 SPEC，并等待一次确认。",
       "files": [],
-      "expectations": ["指出无法形成可执行 AST", "不补写业务规则", "更新完整 SPEC 并一次确认"]
+      "expectations": ["指出无法形成可执行 AST", "不补写业务规则", "更新 SPEC 并一次确认"]
     },
     {
       "id": 4,

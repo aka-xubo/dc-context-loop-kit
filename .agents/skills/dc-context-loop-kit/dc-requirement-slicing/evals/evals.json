@@ -39,9 +39,9 @@
     {
       "id": 6,
       "prompt": "REQ-USER-AUTH 已确认。业务目标、范围和失败规则不变，只把‘错误密码时返回 401’补充为一个新的验收场景和 AST。",
-      "expected_output": "判断为 SPEC_CHANGE，不发布新的 REQ；交给 dc-acceptance-design 生成新的完整 SPEC。",
+      "expected_output": "判断为 SPEC_CHANGE，不发布新的 REQ；交给 dc-acceptance-design 相对当前 SPEC 生成增量。",
       "files": [],
-      "expectations": ["decision 为 SPEC_CHANGE", "说明业务承诺未变化", "不修改 REQ 当前定义", "重新生成完整 SPEC"]
+      "expectations": ["decision 为 SPEC_CHANGE", "说明业务承诺未变化", "不修改 REQ 当前定义", "生成增量 SPEC"]
     }
   ]
 }

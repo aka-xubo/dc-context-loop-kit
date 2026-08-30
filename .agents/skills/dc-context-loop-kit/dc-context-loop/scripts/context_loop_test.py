@@ -85,6 +85,54 @@ def specification_event(event_id: str, *, scenario_id: str = "SCN-001", title: s
     }
 
 
+def incremental_specification_event(event_id: str = "EVT-SPEC-DELTA") -> dict:
+    return {
+        "document_type": "deep_crew_delivery_event",
+        "event": {
+            "event_id": event_id,
+            "created_at": "2026-08-30T10:00:00+09:00",
+            "author": "tester",
+            "node": "SPEC",
+            "reason": "记录相对基础 SPEC 的增量变化",
+            "specification": {
+                "requirement_ref": "REQ-001",
+                "base_spec_ref": "SPEC-002",
+                "changes": {
+                    "added": {
+                        "scenarios": [{
+                            "id": "SCN-002",
+                            "title": "明确验收授权",
+                            "business_result": "只有明确授权才开始验收",
+                            "given": ["实现状态为 READY"],
+                            "when": "用户明确说执行验收",
+                            "then": [{"id": "THEN-002", "statement": "系统进入验收流程"}],
+                            "delivery_surfaces": ["skill"],
+                        }],
+                        "checks": [{
+                            "id": "CHK-002",
+                            "scenario_ids": ["SCN-002"],
+                            "verification_type": "e2e",
+                            "responsibility": "验证明确授权后进入验收",
+                            "required": True,
+                            "blocking": True,
+                        }],
+                        "assertions": [{
+                            "id": "AST-002",
+                            "check_id": "CHK-002",
+                            "outcome_refs": ["SCN-002.THEN-002"],
+                            "assertion_type": "semantic",
+                            "description": "明确授权后才进入验收",
+                        }],
+                    },
+                    "modified": {"scenarios": [], "checks": [], "assertions": []},
+                    "removed": {"scenarios": [], "checks": [], "assertions": []},
+                },
+                "open_questions": [],
+            },
+        },
+    }
+
+
 def implementation_event(
     event_id: str,
     *,
@@ -187,6 +235,13 @@ class ContextLoopTest(unittest.TestCase):
         self.assertIn("业务承诺不变，但场景、CHK、AST、验证责任或验证方式变化", loop_skill)
         self.assertIn("SPEC_CHANGE", slicing_skill)
         self.assertIn("只有业务承诺变化才发布 REQ", slicing_skill)
+
+    def test_spec_confirmation_requires_clickable_draft_link(self) -> None:
+        loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        design_skill = (SCRIPT_DIR.parent.parent / "dc-acceptance-design" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("人类可点击的草案文件链接", loop_skill)
+        self.assertIn("确认前必须给出可点击的草案文件链接", design_skill)
+        self.assertIn("确认前不得发布对应 REQ/SPEC 事件", loop_skill)
 
     def test_snapshot_rejects_unknown_fields(self) -> None:
         document = requirement_event("EVT-REQ-WITH-UNKNOWN")
@@ -303,6 +358,43 @@ class ContextLoopTest(unittest.TestCase):
             for subject_id in ("SCN-001", "CHK-001", "AST-001"):
                 self.assertIn(subject_id, content)
             self.assertIn("当前验收规格", content)
+
+    def test_incremental_spec_validates_and_renders_changes(self) -> None:
+        document = incremental_specification_event()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            content = (output_dir / "EVT-SPEC-DELTA.md").read_text(encoding="utf-8")
+            self.assertIn("基础 SPEC", content)
+            self.assertIn("SPEC-002", content)
+            self.assertIn("新增", content)
+            self.assertIn("SCN-002", content)
+
+    def test_incremental_spec_rejects_modified_object_without_id(self) -> None:
+        document = incremental_specification_event("EVT-SPEC-DELTA-BAD")
+        document["event"]["specification"]["changes"]["modified"]["scenarios"] = [{"title": "缺少 ID"}]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("modified.scenarios", result.stderr)
 
     def test_implementation_renders_completed_delivery(self) -> None:
         document = implementation_event("EVT-IMP-001")
