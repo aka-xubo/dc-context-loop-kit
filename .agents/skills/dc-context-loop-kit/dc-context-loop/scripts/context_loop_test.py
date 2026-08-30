@@ -172,6 +172,14 @@ def acceptance_event(
         },
     }
 class ContextLoopTest(unittest.TestCase):
+    def test_ready_waits_for_explicit_acceptance_authorization(self) -> None:
+        loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("`IMPLEMENTATION READY` 只是交给验收角色的条件，不是验收授权", loop_skill)
+        self.assertIn("明确的“执行验收”“开始验收”“请验收”等指令", loop_skill)
+        self.assertIn("没有明确验收指令时，硬停止在等待状态", loop_skill)
+        self.assertIn("不调用 `dc-acceptance-verification`，不生成 `RUN`、`ART` 或 `ACC-*`", loop_skill)
+        self.assertIn("“继续”“可以”“来吧”等泛化表达不构成验收授权", loop_skill)
+
     def test_routing_contract_distinguishes_spec_change(self) -> None:
         loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
         slicing_skill = (SCRIPT_DIR.parent.parent / "dc-requirement-slicing" / "SKILL.md").read_text(encoding="utf-8")

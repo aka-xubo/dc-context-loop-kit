@@ -36,6 +36,18 @@
       "prompt": "这是一个新需求，先不要直接写 REQ。请像 Grilling Me 一样读取 Issue 上下文，先记录已知事实，提出当前最重要的问题并等待负责人回答。",
       "expected_output": "调用 dc-grilling 在当前对话中查明事实并提出会改变需求结果的最小问题集；问题明确后直接生成 REQ。",
       "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Issue 中已有 IMPLEMENTATION READY 和完整 commit，但用户只说‘继续’。请继续处理这个 Issue。",
+      "expected_output": "报告实现已 READY，但没有明确验收授权；硬停止等待用户说‘执行验收’或等价指令，不调用验收技能，不生成 RUN/ART/ACC。",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Issue 中已有 IMPLEMENTATION READY 和完整 commit。用户明确说‘执行验收’。",
+      "expected_output": "识别为明确验收授权，进入 ACCEPTANCE，调用 acceptance-verification 和 acceptance-closure，并发布唯一验收结论事件。",
+      "files": []
     }
   ]
 }

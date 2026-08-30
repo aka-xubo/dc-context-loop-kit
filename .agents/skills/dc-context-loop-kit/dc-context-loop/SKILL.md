@@ -176,7 +176,7 @@ REQ/SPEC 每次都发布当时的完整内容。模型结合完整评论时间�
 ```text
 新的 REQ 快照 → 按需重新生成 SPEC → 实现完成后重新验收
 新的完整 SPEC 快照 → 实现完成后重新验收
-新的 IMPLEMENTATION 交付 → 在其 commit 上重新测试/验收
+新的 IMPLEMENTATION 交付 → 报告 READY 并等待明确验收指令
 验收技能产出失败或阻塞结论 → Context Loop 根据验收证据和当前定义路由回 IMPLEMENTATION；若验收定义不可裁决，才回到 SPEC/REQ 并按需调用 grilling
 环境问题 → 记录阻塞并只重做受影响验收
 ```
@@ -224,7 +224,14 @@ REQ/SPEC 评论展示本次完整快照；实现完成评论展示本次摘要�
 
 ### 4. 实现和验收
 
-实现完成事件记录本次交付和 commit，但不宣称验收通过。验收在本地完成后只发布一条验收事件，必须记录：
+实现完成事件记录本次交付和 commit，但不宣称验收通过。`IMPLEMENTATION READY` 只是交给验收角色的条件，不是验收授权。总协调器在 READY 后必须先检查当前用户消息是否包含明确的验收指令：
+
+- 明确的“执行验收”“开始验收”“请验收”等指令，才允许进入 `ACCEPTANCE`，调用 `dc-acceptance-verification` 和 `dc-acceptance-closure`；
+- 没有明确验收指令时，硬停止在等待状态，只报告绑定的实现、commit 和等待原因；
+- 不调用 `dc-acceptance-verification`，不生成 `RUN`、`ART` 或 `ACC-*`；
+- `READY`、`impact.next_actions` 以及“继续”“可以”“来吧”等泛化表达不构成验收授权。
+
+收到明确验收指令后，验收在本地完成并只发布一条验收事件，必须记录：
 
 - 绑定的实现 commit；
 - 绑定的 REQ/SPEC 对象 ID；
