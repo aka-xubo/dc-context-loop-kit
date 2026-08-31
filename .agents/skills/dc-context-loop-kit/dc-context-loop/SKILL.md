@@ -236,7 +236,12 @@ REQ 评论展示本次完整快照；SPEC 评论展示本次完整快照或增�
 - 不调用 `dc-acceptance-verification`，不生成 `RUN`、`ART` 或 `ACC-*`；
 - `READY`、`impact.next_actions` 以及“继续”“可以”“来吧”等泛化表达不构成验收授权。
 
-收到明确验收指令后，验收在本地完成并只发布一条验收事件，必须记录：
+收到明确验收指令后，先确定验收模式：指令明确指定 `IMP-*` 时使用 `targeted` 单次验收，只覆盖该 IMP 的 `spec_refs` 展开的完整 CHK/AST；指令未指定 IMP 时使用 `full` 全量验收，覆盖当前有效 SPEC 的全部必需、阻断 CHK/AST。验收在本地完成并只发布一条验收事件，必须记录：
+
+- `mode: targeted | full`；
+- `scope_refs.scenarios/checks/assertions` 本次实际裁决范围；
+- `req_completion_impact: NONE | ELIGIBLE`，只有 `full + SATISFIED` 才能使用 `ELIGIBLE`；
+- 评论标题明确展示“单次验收 · IMP-*”或“全量验收 · 当前有效 SPEC”。
 
 - 绑定的实现 commit；
 - 绑定的 REQ/SPEC 对象 ID；

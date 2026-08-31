@@ -196,12 +196,16 @@ def acceptance_event(
     run_id: str = "RUN-001",
     artifact_id: str = "ART-001",
     git_commit: str = "a" * 40,
+    mode: str = "targeted",
 ) -> dict:
     result = {
         "status": "SATISFIED",
         "requirement_ref": "REQ-001",
         "spec_refs": ["SCN-001", "CHK-001", "AST-001"],
         "implementation_refs": ["IMP-001"],
+        "mode": mode,
+        "scope_refs": {"scenarios": ["SCN-001"], "checks": ["CHK-001"], "assertions": ["AST-001"]},
+        "req_completion_impact": "NONE" if mode == "targeted" else "ELIGIBLE",
         "git_commit": git_commit,
         "runs": [{"id": run_id, "phase": "api_verification", "check_refs": ["CHK-001"], "assertion_refs": ["AST-001"], "status": "PASSED"}],
         "artifacts": [{"id": artifact_id, "type": "api_exchange", "location": f"artifacts/{run_id}.json"}],
@@ -229,6 +233,15 @@ class ContextLoopTest(unittest.TestCase):
         self.assertIn("没有明确验收指令时，硬停止在等待状态", loop_skill)
         self.assertIn("不调用 `dc-acceptance-verification`，不生成 `RUN`、`ART` 或 `ACC-*`", loop_skill)
         self.assertIn("“继续”“可以”“来吧”等泛化表达不构成验收授权", loop_skill)
+
+    def test_acceptance_scope_modes_are_documented(self) -> None:
+        loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        closure_skill = (SCRIPT_DIR.parent.parent / "dc-acceptance-closure" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("`targeted` 单次验收", loop_skill)
+        self.assertIn("`full` 全量验收", loop_skill)
+        self.assertIn("scope_refs.scenarios/checks/assertions", loop_skill)
+        self.assertIn("只有 `full + SATISFIED` 才能使用 `ELIGIBLE`", loop_skill)
+        self.assertIn("`targeted` 只能裁决指定 IMP 的完整切片", closure_skill)
 
     def test_routing_contract_distinguishes_spec_change(self) -> None:
         loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
@@ -362,6 +375,7 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("当前验收规格", content)
             self.assertIn("SPEC-001 当前验收规格", content)
             self.assertIn("subject_id: SPEC-001", content)
+            self.assertIn("| SCN | 标题 | 业务结果 | Given | When | Then | 交付面 |", content)
 
     def test_incremental_spec_validates_and_renders_changes(self) -> None:
         document = incremental_specification_event()
@@ -383,6 +397,33 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("新增", content)
             self.assertIn("SCN-002", content)
             self.assertIn("SPEC-002 验收规格增量", content)
+            self.assertIn("| SCN | 标题 | 业务结果 | Given | When | Then | 交付面 |", content)
+
+    def test_spec_draft_renderer_merges_incremental_view(self) -> None:
+        base = specification_event("EVT-SPEC-BASE")
+        base["event"]["subject_id"] = "SPEC-002"
+        delta = incremental_specification_event("EVT-SPEC-DRAFT-DELTA")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            base_file = root / "base.yaml"
+            delta_file = root / "delta.yaml"
+            output_file = root / "draft.md"
+            base_file.write_text(yaml.safe_dump(base, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            delta_file.write_text(yaml.safe_dump(delta, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "render_spec_draft.py"), "--event-file", str(delta_file), "--base-spec-file", str(base_file), "--output-file", str(output_file)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            content = output_file.read_text(encoding="utf-8")
+            self.assertIn("当前有效规格", content)
+            self.assertIn("SCN-001", content)
+            self.assertIn("SCN-002", content)
+            self.assertIn("CHK-001", content)
+            self.assertIn("AST-002", content)
+            self.assertIn("DEEP_CREW_EVENT_START", content)
 
     def test_spec_requires_spec_subject_id(self) -> None:
         document = specification_event("EVT-SPEC-MISSING-ID")
@@ -494,6 +535,44 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("RUN-001", content)
             self.assertIn("ART-001", content)
             self.assertIn("AST-001", content)
+            self.assertIn("targeted", content)
+            self.assertIn("单次验收", content)
+
+    def test_full_acceptance_renders_full_scope(self) -> None:
+        document = acceptance_event("EVT-ACC-FULL", subject_id="ACC-002", mode="full")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            content = (output_dir / "EVT-ACC-FULL.md").read_text(encoding="utf-8")
+            self.assertIn("全量验收", content)
+            self.assertIn("当前有效 SPEC", content)
+            self.assertIn("REQ 完成资格", content)
+
+    def test_targeted_acceptance_requires_one_implementation(self) -> None:
+        document = acceptance_event("EVT-ACC-TARGETED-BAD")
+        document["event"]["acceptance"]["implementation_refs"] = ["IMP-001", "IMP-002"]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("targeted", result.stderr)
 
     def test_acceptance_rejects_unknown_fields(self) -> None:
         document = acceptance_event("EVT-ACC-WITH-UNKNOWN")

@@ -7,7 +7,7 @@ description: 在实现计划 READY 后，由验收角色执行当前 CHK 的真�
 
 ## 节点职责
 
-本技能是 ACCEPTANCE 节点内部的事实采集步骤。它在本地执行真实验证，生成 RUN、ART 和逐 AST 实际观察；不发布验收启动、进度或单独的验证评论，也不形成最终验收结论。完成后把本地验收材料交给 `dc-acceptance-closure`。
+本技能是 ACCEPTANCE 节点内部的事实采集步骤。它在本地执行真实验证，生成 RUN、ART 和逐 AST 实际观察；不发布验收启动、进度或单独的验证评论，也不形成最终验收结论。验收入口先确定模式：指定 `IMP-*` 时为 `targeted` 单次验收，范围为该 IMP 的 `spec_refs` 展开的完整 CHK/AST；未指定 IMP 时为 `full` 全量验收，范围为当前有效 SPEC 的全部必需、阻断 CHK/AST。完成后把本地验收材料交给 `dc-acceptance-closure`。
 
 入口要求：目标 REQ、场景和矩阵均为 `CONFIRMED`，实现计划为 `READY`，绑定唯一完整 `git_commit`，并且已收到用户明确的验收指令。IMPLEMENTATION READY 事件不是自动进入本技能的触发器；“继续”“可以”“来吧”等泛化指令不构成验收授权。验收者不修改生产实现或验收定义；发现定义无法裁决时停止执行，退回 `dc-acceptance-design`。
 

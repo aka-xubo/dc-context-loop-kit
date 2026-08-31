@@ -106,6 +106,6 @@ specification:
 
 ## IMPLEMENTATION 与 ACCEPTANCE
 
-实现和验收保持独立事实模型：实现计划、编码、调试和本地验收过程不发布过程事件；完成后分别发布完整 `IMPLEMENTATION` 或 `ACCEPTANCE` 事实。具体字段和示例见 Context Loop 主技能及对应 Schema。
+实现和验收保持独立事实模型：实现计划、编码、调试和本地验收过程不发布过程事件；完成后分别发布完整 `IMPLEMENTATION` 或 `ACCEPTANCE` 事实。ACCEPTANCE 必须显式保存 `mode: targeted | full`、`scope_refs` 和 `req_completion_impact`：指定一个 `IMP-*` 的单次验收使用 `targeted`，未指定 IMP 的当前有效 SPEC 全量验收使用 `full`；只有 `full` 模式的 `SATISFIED` 才能影响 REQ 完成状态。具体字段和示例见 Context Loop 主技能及对应 Schema。
 
 讨论不是事件。高影响歧义由 `dc-grilling` 在当前对话中处理，收束后直接生成上述 REQ 或 SPEC 快照。

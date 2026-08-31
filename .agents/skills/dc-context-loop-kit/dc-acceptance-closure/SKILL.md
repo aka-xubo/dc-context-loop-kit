@@ -7,7 +7,7 @@ description: 汇总当前定义对应的 RUN/ART 并裁决验收报告。
 
 ## 节点职责
 
-本技能是 ACCEPTANCE 节点内部的裁决步骤。它不重新执行验证，也不发布独立的收口评论；它审查 `dc-acceptance-verification` 在本地形成的 RUN/ART，生成逐 AST 结果和最终结论，再把完整结果交回 `dc-context-loop`，由总协调器发布唯一一条 `ACCEPTANCE` 结论事件。
+本技能是 ACCEPTANCE 节点内部的裁决步骤。它不重新执行验证，也不发布独立的收口评论；它审查 `dc-acceptance-verification` 在本地形成的 RUN/ART，按 `targeted` 单次范围或 `full` 全量范围生成逐 AST 结果和最终结论，再把完整结果交回 `dc-context-loop`，由总协调器发布唯一一条 `ACCEPTANCE` 结论事件。`targeted` 只能裁决指定 IMP 的完整切片，`full` 才能裁决当前有效 SPEC 的全部必需、阻断 CHK/AST。
 
 只接受当前唯一 `git_commit` 上、匹配当前 REQ、场景和矩阵摘要的当前 `PASSED` 正式 RUN/ART。根据正式 RUN 的 `assertion_refs` 汇总 AST 覆盖；其 `supporting_run_refs` 引用的辅助 RUN 也必须在当前提交上有效。任一必需阻断 CHK 存在未被有效 PASSED 正式 RUN 覆盖的 AST、失败或阻塞，报告为 `NOT_SATISFIED`。辅助 RUN 不产生 AST 覆盖，不得用 CHK 级 RUN 或辅助 RUN 推定全部 AST 已通过，也不得组合不同提交上的结果。
 

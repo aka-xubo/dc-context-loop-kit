@@ -1,0 +1,108 @@
+document_type: deep_crew_delivery_event
+event:
+  event_id: EVT-HTW-1671-SPEC-005
+  created_at: '2026-08-31T13:20:46+08:00'
+  author: dino.xu
+  node: SPEC
+  subject_id: SPEC-005
+  reason: 用户确认 SPEC 人类可读审查与验收范围标识增量
+  references:
+    issue: HTW-1671
+  specification:
+    requirement_ref: REQ-DC-CONTEXT-LOOP-SEMANTIC
+    base_spec_ref: SPEC-004
+    changes:
+      added:
+        scenarios:
+          - id: SCN-011
+            title: SPEC 草案提供人类可读表格
+            business_result: 负责人能够在不解析 YAML 的情况下逐项审查当前验收场景、检查责任和原子断言，并确认本次 SPEC 变化。
+            given:
+              - 当前 Issue 存在已确认的基础 SPEC
+              - 模型生成完整或增量 SPEC 草案
+              - 草案包含 SCN、CHK、AST 结构化数据
+            when: 用户打开本地 SPEC 草案进行确认
+            then:
+              - id: THEN-023
+                statement: 草案提供 SCN 的人类可读表格，展示 ID、业务结果、Given、When、Then 和交付面
+              - id: THEN-024
+                statement: 草案提供 CHK 和 AST 的人类可读表格，展示稳定 ID、引用、类型、责任和描述
+              - id: THEN-025
+                statement: 增量表格、合并后的当前有效规格表格与 YAML 机器块表达同一组对象、引用和描述
+            delivery_surfaces: [skill]
+          - id: SCN-012
+            title: 验收结论标识单次或全量范围
+            business_result: 负责人能够从验收结论直接判断本次是单个实现交付通过，还是当前有效规格整体通过。
+            given:
+              - Issue 有已确认 REQ/SPEC 和一个或多个 READY 的 IMP
+              - 用户发出明确验收指令
+            when: 用户明确指定 IMP-*，或明确要求全量验收
+            then:
+              - id: THEN-026
+                statement: "指定 IMP 时生成 mode: targeted，范围为该 IMP 的 spec_refs 展开的完整 CHK/AST"
+              - id: THEN-027
+                statement: "未指定 IMP 时生成 mode: full，范围为当前有效 SPEC 的全部必需、阻断 CHK/AST"
+              - id: THEN-028
+                statement: "结论明确说明模式、目标、范围和对 REQ 状态的影响，只有 full 模式的 SATISFIED 影响整个 REQ"
+            delivery_surfaces: [skill]
+        checks:
+          - id: CHK-011
+            scenario_ids: [SCN-011]
+            dependency_ids: []
+            verification_type: unit
+            responsibility: 直接生成完整和增量 SPEC 草案，检查 SCN、CHK、AST 表格、增量/合并视图与 YAML 的一致性。
+            required: true
+            blocking: true
+            evidence_requirements:
+              required_artifact_types: [command_output]
+            external_verification: null
+          - id: CHK-012
+            scenario_ids: [SCN-012]
+            dependency_ids: []
+            verification_type: e2e
+            responsibility: 分别使用指定 IMP 和未指定 IMP 的明确验收指令，检查验收模式、完整范围和 REQ 状态影响。
+            required: true
+            blocking: true
+            evidence_requirements:
+              required_artifact_types: [command_output]
+            external_verification: null
+        assertions:
+          - id: AST-022
+            check_id: CHK-011
+            outcome_refs: [SCN-011.THEN-023]
+            assertion_type: semantic
+            description: 本地草案包含 SCN 表格，且每个当前有效场景均可逐项审查。
+          - id: AST-023
+            check_id: CHK-011
+            outcome_refs: [SCN-011.THEN-024]
+            assertion_type: semantic
+            description: 本地草案包含 CHK 与 AST 表格，且引用、类型、责任和描述可逐项审查。
+          - id: AST-024
+            check_id: CHK-011
+            outcome_refs: [SCN-011.THEN-025]
+            assertion_type: semantic
+            description: 增量表格、合并后的有效规格表格与同一 YAML 机器块的对象 ID、引用和描述一致。
+          - id: AST-025
+            check_id: CHK-012
+            outcome_refs: [SCN-012.THEN-026]
+            assertion_type: semantic
+            description: "明确指定 IMP-* 时，验收结论标记 mode: targeted，并覆盖该 IMP 的 spec_refs 展开的完整 CHK/AST。"
+          - id: AST-026
+            check_id: CHK-012
+            outcome_refs: [SCN-012.THEN-027]
+            assertion_type: semantic
+            description: "未指定 IMP 而要求验收时，验收结论标记 mode: full，并覆盖当前有效 SPEC 的全部必需、阻断 CHK/AST。"
+          - id: AST-027
+            check_id: CHK-012
+            outcome_refs: [SCN-012.THEN-028]
+            assertion_type: semantic
+            description: "验收结论展示模式、目标、范围和 REQ 状态影响；只有 full 模式的 SATISFIED 影响整个 REQ。"
+      modified:
+        scenarios: []
+        checks: []
+        assertions: []
+      removed:
+        scenarios: []
+        checks: []
+        assertions: []
+    open_questions: []

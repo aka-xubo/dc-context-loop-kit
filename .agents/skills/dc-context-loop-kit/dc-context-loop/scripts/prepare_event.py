@@ -329,12 +329,32 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
         acceptance = event.get("acceptance")
         require(isinstance(acceptance, dict), "ACCEPTANCE 缺少完整 acceptance 结论对象")
         require(acceptance.get("status") in {"SATISFIED", "NOT_SATISFIED", "BLOCKED", "INCOMPLETE"}, "acceptance.status 非法")
-        for field in ("requirement_ref", "spec_refs", "implementation_refs", "git_commit", "runs", "artifacts", "assertion_results", "reason"):
+        for field in ("requirement_ref", "spec_refs", "implementation_refs", "mode", "scope_refs", "req_completion_impact", "git_commit", "runs", "artifacts", "assertion_results", "reason"):
             require(field in acceptance, f"ACCEPTANCE 缺少字段: {field}")
         nonempty(acceptance["reason"], "acceptance.reason")
         require(isinstance(acceptance["git_commit"], str) and GIT_COMMIT_RE.fullmatch(acceptance["git_commit"]), "acceptance.git_commit 必须是完整 Git commit")
         require(isinstance(acceptance["spec_refs"], list), "acceptance.spec_refs 必须是数组")
         require(isinstance(acceptance["implementation_refs"], list), "acceptance.implementation_refs 必须是数组")
+        for value in acceptance["spec_refs"]:
+            require(isinstance(value, str) and re.fullmatch(r"(SCN|CHK|AST)-[A-Za-z0-9_-]+", value), f"acceptance.spec_refs 非法: {value}")
+        for value in acceptance["implementation_refs"]:
+            require(isinstance(value, str) and re.fullmatch(r"IMP-[A-Za-z0-9_-]+", value), f"acceptance.implementation_refs 非法: {value}")
+        require(acceptance["mode"] in {"targeted", "full"}, "acceptance.mode 必须为 targeted 或 full")
+        scope_refs = acceptance["scope_refs"]
+        require(isinstance(scope_refs, dict), "acceptance.scope_refs 必须是对象")
+        ensure_keys(scope_refs, {"scenarios", "checks", "assertions"}, "acceptance.scope_refs")
+        for key, pattern in (("scenarios", SCN_ID_RE), ("checks", CHK_ID_RE), ("assertions", AST_ID_RE)):
+            require(isinstance(scope_refs.get(key), list) and scope_refs[key], f"acceptance.scope_refs.{key} 必须是非空数组")
+            for value in scope_refs[key]:
+                require(isinstance(value, str) and pattern.fullmatch(value), f"acceptance.scope_refs.{key} 包含非法 ID: {value}")
+        require(acceptance["req_completion_impact"] in {"NONE", "ELIGIBLE"}, "acceptance.req_completion_impact 必须为 NONE 或 ELIGIBLE")
+        if acceptance["mode"] == "targeted":
+            require(len(acceptance["implementation_refs"]) == 1, "targeted 验收必须且只能引用一个 IMP")
+            require(acceptance["req_completion_impact"] == "NONE", "targeted 验收的 req_completion_impact 必须为 NONE")
+        elif acceptance["status"] == "SATISFIED":
+            require(acceptance["req_completion_impact"] == "ELIGIBLE", "full 验收 SATISFIED 时 req_completion_impact 必须为 ELIGIBLE")
+        else:
+            require(acceptance["req_completion_impact"] == "NONE", "未通过的 full 验收 req_completion_impact 必须为 NONE")
         require(isinstance(acceptance["runs"], list), "acceptance.runs 必须是数组")
         require(isinstance(acceptance["artifacts"], list), "acceptance.artifacts 必须是数组")
         require(isinstance(acceptance["assertion_results"], list), "acceptance.assertion_results 必须是数组")
@@ -479,6 +499,8 @@ def render_implementation(event: dict[str, Any]) -> str:
 
 def render_acceptance(event: dict[str, Any]) -> str:
     acceptance = event["acceptance"]
+    mode_label = "单次验收" if acceptance["mode"] == "targeted" else "全量验收"
+    target = ", ".join(acceptance["implementation_refs"]) if acceptance["mode"] == "targeted" else "当前有效 SPEC"
     rows = "\n".join(
         f"| `{item['assertion_id']}` | {display(item['expected'])} | {display(item['observed'])} | {item['status']} | {', '.join(item.get('artifact_refs', [])) or '无'} |"
         for item in acceptance["assertion_results"]
@@ -491,7 +513,7 @@ def render_acceptance(event: dict[str, Any]) -> str:
         f"- `{artifact['id']}`：{artifact['type']}，{artifact['location']}"
         for artifact in acceptance["artifacts"]
     ) or "- 无"
-    return f"""[DP:ACCEPTANCE] {event['subject_id']} 验收结论
+    return f"""[DP:ACCEPTANCE] {event['subject_id']} · {mode_label} · {target} 验收结论
 
 ## 验收基线
 
@@ -499,6 +521,15 @@ def render_acceptance(event: dict[str, Any]) -> str:
 - 规格：{', '.join(acceptance['spec_refs']) or '无'}
 - 实现：{', '.join(acceptance['implementation_refs']) or '无'}
 - Git commit：{acceptance['git_commit'] or '无'}
+
+## 验收范围
+
+- 模式：`{acceptance['mode']}`（{mode_label}）
+- 目标：{target}
+- 场景：{', '.join(acceptance['scope_refs']['scenarios'])}
+- 检查：{', '.join(acceptance['scope_refs']['checks'])}
+- 断言：{', '.join(acceptance['scope_refs']['assertions'])}
+- REQ 完成资格：{'可影响整个 REQ' if acceptance['req_completion_impact'] == 'ELIGIBLE' else '仅影响本次验收切片'}
 
 ## 本地执行
 
@@ -528,6 +559,23 @@ def render_acceptance(event: dict[str, Any]) -> str:
 
 def render_spec(event: dict[str, Any]) -> str:
     specification = event["specification"]
+    def markdown_cell(value: Any) -> str:
+        return display(value).replace("|", "\\|").replace("\n", " ")
+
+    def scenario_table(items: list[dict[str, Any]]) -> str:
+        if not items:
+            return "无"
+        rows = ["| SCN | 标题 | 业务结果 | Given | When | Then | 交付面 |", "|---|---|---|---|---|---|---|"]
+        for item in items:
+            given = "；".join(item.get("given", [])) or "无"
+            then = "；".join(f"{outcome['id']} {outcome['statement']}" for outcome in item.get("then", [])) or "无"
+            rows.append(
+                f"| `{item['id']}` | {markdown_cell(item['title'])} | {markdown_cell(item['business_result'])} | "
+                f"{markdown_cell(given)} | {markdown_cell(item['when'])} | {markdown_cell(then)} | "
+                f"{markdown_cell(', '.join(item.get('delivery_surfaces', [])) or '无')} |"
+            )
+        return "\n".join(rows)
+
     if "changes" in specification:
         changes = specification["changes"]
         def ids_or_none(items: list[Any]) -> str:
@@ -536,15 +584,7 @@ def render_spec(event: dict[str, Any]) -> str:
             if not items:
                 return "无"
             if object_type == "scenarios":
-                return "\n\n".join(
-                    f"### {item['id']} {item['title']}\n\n"
-                    f"- 业务结果：{item['business_result']}\n"
-                    f"- Given：{'；'.join(item['given']) or '无'}\n"
-                    f"- When：{item['when']}\n"
-                    f"- Then：{'；'.join(outcome['id'] + ' ' + outcome['statement'] for outcome in item['then'])}\n"
-                    f"- 交付面：{', '.join(item['delivery_surfaces']) or '无'}"
-                    for item in items
-                )
+                return scenario_table(items)
             if object_type == "checks":
                 return "\n".join(
                     f"| `{item['id']}` | {', '.join(item['scenario_ids'])} | {item['verification_type']} | {item['responsibility']} | "
@@ -578,7 +618,7 @@ def render_spec(event: dict[str, Any]) -> str:
 
 ### 场景
 
-{objects_text('scenarios', added['scenarios'])}
+{scenario_table(added['scenarios'])}
 
 ### 检查责任
 
@@ -596,7 +636,7 @@ def render_spec(event: dict[str, Any]) -> str:
 
 ### 场景
 
-{objects_text('scenarios', modified['scenarios'])}
+{scenario_table(modified['scenarios'])}
 
 ### 检查责任
 
@@ -621,15 +661,7 @@ def render_spec(event: dict[str, Any]) -> str:
 {list_text(specification['open_questions'])}
 
 {render_machine_block(event)}"""
-    scenarios = "\n\n".join(
-        f"### {scenario['id']} {scenario['title']}\n\n"
-        f"- 业务结果：{scenario['business_result']}\n"
-        f"- Given：{'；'.join(scenario['given']) or '无'}\n"
-        f"- When：{scenario['when']}\n"
-        f"- Then：{'；'.join(outcome['id'] + ' ' + outcome['statement'] for outcome in scenario['then'])}\n"
-        f"- 交付面：{', '.join(scenario['delivery_surfaces']) or '无'}"
-        for scenario in specification["scenarios"]
-    )
+    scenarios = scenario_table(specification["scenarios"])
     checks = "\n".join(
         f"| `{check['id']}` | {', '.join(check['scenario_ids'])} | {check['verification_type']} | {check['responsibility']} | "
         f"{'是' if check['required'] else '否'} | {'是' if check['blocking'] else '否'} |"

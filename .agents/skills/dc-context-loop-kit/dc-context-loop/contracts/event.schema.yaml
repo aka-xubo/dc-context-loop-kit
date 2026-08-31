@@ -285,12 +285,22 @@ $defs:
   acceptance_result:
     type: object
     additionalProperties: false
-    required: [status, requirement_ref, spec_refs, implementation_refs, git_commit, runs, artifacts, assertion_results, reason]
+    required: [status, requirement_ref, spec_refs, implementation_refs, mode, scope_refs, req_completion_impact, git_commit, runs, artifacts, assertion_results, reason]
     properties:
       status: {enum: [SATISFIED, NOT_SATISFIED, BLOCKED, INCOMPLETE]}
       requirement_ref: {type: string, pattern: '^REQ-[A-Za-z0-9_-]+$'}
       spec_refs: {type: array, items: {type: string, pattern: '^(SCN|CHK|AST)-[A-Za-z0-9_-]+$'}}
       implementation_refs: {type: array, items: {type: string, pattern: '^IMP-[A-Za-z0-9_-]+$'}}
+      mode: {enum: [targeted, full]}
+      scope_refs:
+        type: object
+        additionalProperties: false
+        required: [scenarios, checks, assertions]
+        properties:
+          scenarios: {type: array, minItems: 1, items: {type: string, pattern: '^SCN-[A-Za-z0-9_-]+$'}}
+          checks: {type: array, minItems: 1, items: {type: string, pattern: '^CHK-[A-Za-z0-9_-]+$'}}
+          assertions: {type: array, minItems: 1, items: {type: string, pattern: '^AST-[A-Za-z0-9_-]+$'}}
+      req_completion_impact: {enum: [NONE, ELIGIBLE]}
       git_commit: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
       runs:
         type: array
