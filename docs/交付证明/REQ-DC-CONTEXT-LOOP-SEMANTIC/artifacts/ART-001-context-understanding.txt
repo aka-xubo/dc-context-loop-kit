@@ -1,9 +1,9 @@
-Command: dc-context-loop 处理 HTW-1671；dc-issue-intake 实时读取 Issue 和全部评论，覆盖状态 FULL，共读取 1 页、4 条评论。
-已确认事实：EVT-HTW-1671-REQ-002 是当前 REQ；EVT-HTW-1671-SPEC-001 是用户已确认的完整 SPEC；EVT-HTW-1671-IMP-001 绑定 commit afcd4f3ee4dcfca27195132d41e60ec2b697d60d 且状态 READY。
-普通讨论：用户对确认人、确认时间、优先级占位和仓库归属的讨论本身不作为隐藏状态；其中明确指令通过后续定义或实现事实落实。
-用户最新指令：继续处理，并明确技能包必须属于 infrastructure/dc-loop 独立仓库。
-当前适用定义：REQ-DC-CONTEXT-LOOP-SEMANTIC；SCN-001 至 SCN-005；CHK-001 至 CHK-005；AST-001 至 AST-009。
-冲突：无。历史 REQ-001 已被包含单次 SPEC 确认要求的 REQ-002 更新；当前 SPEC 和实现均引用后者。
-未决问题：无。仓库地址、SPEC 确认和验收授权均已由用户明确给出。
-真实阻塞：无。实现 commit、测试环境和本地审核页均可用。
-依据：Issue 评论 a6645766-5547-47d1-873b-616f72877875、f386a902-35b4-46b8-baf5-5237a5df5f90、d7675edb-4f7d-462f-af64-48e236e52265、dde3346b-c5ac-493b-a06a-4e31c06db778；当前用户指令；README.md；dc-context-loop/SKILL.md 第 40-69 行。
+Command: dc-issue-intake 读取 HTW-1671 完整原始评论；覆盖状态 FULL，共 1 页、7 条评论。
+已确认事实：REQ-002 为当前 REQ；SPEC-002 为当前已确认完整 SPEC；IMP-002 状态 READY，绑定 commit de3a2020d1dfdf89e0d7791aa940ecaf66623fb8。
+普通讨论：关于确认来源、优先级占位、独立仓库和自动验收的讨论不作为隐藏状态；只有后续用户指令或结构化事件事实生效。
+用户最新指令：先验收之前实现，然后继续调整总协调器；本轮明确授权执行验收。
+当前适用定义：REQ-DC-CONTEXT-LOOP-SEMANTIC；SCN-001 至 SCN-005；CHK-001 至 CHK-005；AST-001 至 AST-010。
+冲突：无。ACC-001 绑定旧 IMP-001/旧 commit，不能作为当前 IMP-002 验收证据。
+未决问题：无。当前 REQ、SPEC、实现 commit 和验收授权均明确。
+真实阻塞：无。本地测试、事件工具和审核工作台均可执行。
+依据：Issue 评论 a6645766-5547-47d1-873b-616f72877875、f386a902-35b4-46b8-baf5-5237a5df5f90、d7675edb-4f7d-462f-af64-48e236e52265、dde3346b-c5ac-493b-a06a-4e31c06db778、c888f097-eeb1-46f6-b0bd-aad1529da577、ff16f840-93a8-4c32-b02f-dc58ae91dcf9、bafd05ff-3306-478c-bfe5-a56c1f9f4120；当前用户指令；dc-context-loop/SKILL.md 第 40-89 行.

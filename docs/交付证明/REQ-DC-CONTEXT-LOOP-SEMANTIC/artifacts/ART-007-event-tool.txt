@@ -1,0 +1,24 @@
+COMMAND 1: python3 .agents/skills/dc-context-loop-kit/dc-context-loop/scripts/prepare_event.py --event-file /private/tmp/EVT-HTW-1671-SPEC-003.yaml --issue HTW-1671 --output-dir <temporary>
+{"issue": "HTW-1671", "event_id": "EVT-HTW-1671-SPEC-003", "duplicate": false, "comment_file": "<temporary>/EVT-HTW-1671-SPEC-003.md"}
+Rendered comment observations:
+1 [DP:SPEC] 当前验收规格
+3 ## 关联需求
+11 ## 验收场景
+126 <!-- DEEP_CREW_EVENT_START -->
+127 ```yaml
+128 document_type: deep_crew_delivery_event
+133   node: SPEC
+490 <!-- DEEP_CREW_EVENT_END -->
+
+COMMAND 2: rg --files .agents/skills/dc-context-loop-kit | rg 'reduce|reducer|timeline|snapshot'
+No output. The skill package contains no timeline reduction script.
+
+COMMAND 3: rg -n 'created_at|next_actions|base_spec_ref|changes' .agents/skills/dc-context-loop-kit/dc-context-loop/scripts/prepare_event.py
+93  if "changes" in specification:
+213  ensure_keys(specification, {"requirement_ref", "base_spec_ref", "changes", "open_questions"}, "specification")
+216  specification["base_spec_ref"] must be SPEC-*
+218  changes = specification["changes"]
+260  nonempty(event.get("created_at"), "event.created_at")
+365  next_actions only validated/rendered as impact data
+529  if "changes" in specification: render the delta
+No routing branch is present.

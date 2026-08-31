@@ -1,0 +1,54 @@
+COMMAND 1: python3 .agents/skills/dc-context-loop-kit/dc-context-loop/scripts/context_loop_test.py -v
+test_acceptance_rejects_unknown_fields ... ok
+test_acceptance_renders_one_final_conclusion ... ok
+test_delivery_event_with_unknown_field_is_rejected ... ok
+test_implementation_rejects_unknown_fields ... ok
+test_implementation_renders_completed_delivery ... ok
+test_incremental_spec_rejects_modified_object_without_id ... ok
+test_incremental_spec_validates_and_renders_changes ... ok
+test_initial_req_renders_structured_human_sections ... ok
+test_prepare_event_detects_duplicate ... ok
+test_ready_waits_for_explicit_acceptance_authorization ... ok
+test_routing_contract_distinguishes_spec_change ... ok
+test_snapshot_rejects_unknown_fields ... ok
+test_spec_confirmation_requires_clickable_draft_link ... ok
+test_spec_renderer_renders_full_snapshot ... ok
+test_unsupported_node_is_rejected ... ok
+Ran 15 tests in 0.685s
+OK
+
+COMMAND 2: nl -ba .agents/skills/dc-context-loop-kit/dc-context-loop/SKILL.md | sed -n '44,90p;204,235p;242,260p'
+46  模型必须先形成当前上下文理解，再进行路由。理解至少要明确区分：
+48  已确认事实和已确认决策；
+49  普通讨论、建议和未经确认的意见；
+50  用户最新指令及其相对历史的变化；
+51  当前仍适用的需求、规格、实现和验收事实；
+52  冲突、缺失信息、未决问题和真实阻塞。
+56  先判断用户最新消息是否改变业务目标、业务结果、范围、约束或失败规则；
+57  只有业务承诺未变化时，再判断场景、参与者、条件、动作、结果、CHK、AST、验证责任或验证方式是否变化；
+59  据此选择当前最小责任节点 REQ、SPEC、IMPLEMENTATION 或 ACCEPTANCE；
+60  判断是否存在会改变当前结果的高影响歧义，需要调用 dc-grilling；
+61  判断当前可以安全执行的下一步、所需负责人和必要门禁。
+67    REQUIREMENT_CHANGE；若形成独立业务结果则为 NEW_REQUIREMENT
+69    SPEC_CHANGE
+71    IMPLEMENTATION_ONLY
+73    NO_REQUIREMENT_CHANGE
+81  当前上下文：基于完整历史的事实、决策、适用定义和阻塞摘要
+82  需求变化判断：NEW_REQUIREMENT / REQUIREMENT_CHANGE / SPEC_CHANGE / IMPLEMENTATION_ONLY / NO_REQUIREMENT_CHANGE
+83  当前节点：REQ / SPEC / IMPLEMENTATION / ACCEPTANCE
+84  追问判断：不需要，或需要澄清的高影响问题
+85  下一步：一个最小可执行动作及其负责人
+86  依据：相关评论、用户指令、本地代码或知识文件引用
+89  不得由脚本根据 next_actions、最新评论或事件时间自动推进节点。
+206  先调用 dc-issue-intake 获取 Issue、完整评论和必要附件；模型直接阅读完整原始时间线。
+212  内容不清或存在多个合理解释时先调用 dc-grilling；验收定义变化归入 SPEC，实现错误归入 IMPLEMENTATION。
+232  IMPLEMENTATION READY 只是交给验收角色的条件，不是验收授权。
+234  明确的“执行验收”“开始验收”“请验收”等指令才允许进入 ACCEPTANCE。
+235  没有明确验收指令时，硬停止在等待状态。
+
+COMMAND 3: nl -ba .agents/skills/dc-context-loop-kit/dc-grilling/SKILL.md | sed -n '18,35p;54,59p'
+20  内容已经足够明确时不启动，直接推进目标节点。
+23  会改变业务结果、范围、失败行为、验收裁决、公开接口、数据兼容或不可逆操作的歧义才启动讨论。
+31  先从 Issue 全部评论和本地环境中区分事实与未决问��。
+33  一次提出 1-3 个当前可回答的高影响问题。
+59  ACCEPTANCE 只在定义、证据要求或阻塞归属不清时澄清；不执行验证、不审查 RUN/ART、不裁决 AST、不判断是否通过。

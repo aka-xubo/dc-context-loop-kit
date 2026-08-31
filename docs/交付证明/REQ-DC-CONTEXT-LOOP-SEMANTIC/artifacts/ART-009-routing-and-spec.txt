@@ -1,0 +1,15 @@
+COMMAND 1: targeted contract observations from context_loop_test.py
+223-229 test_ready_waits_for_explicit_acceptance_authorization checks READY is not authorization, explicit acceptance phrases are required, generic “继续/可以/来吧” are rejected, and no verification/RUN/ART/ACC is created.
+231-237 test_routing_contract_distinguishes_spec_change checks SPEC_CHANGE for unchanged business commitment and requires REQ only for business changes.
+239-244 test_spec_confirmation_requires_clickable_draft_link checks a clickable draft link and forbids publishing REQ/SPEC before confirmation.
+362-380 test_incremental_spec_validates_and_renders_changes checks base SPEC, added objects, stable IDs, and rendered delta output.
+382-395 test_incremental_spec_rejects_modified_object_without_id rejects modified objects without an ID.
+438-457 test_acceptance_renders_one_final_conclusion checks one final acceptance conclusion with RUN, ART, and AST references.
+
+COMMAND 2: live issue timeline and implementation binding
+2026-08-30T16:04:19+08:00 ea29c3b4-d613-4b5a-8723-783cf7ae4f61 EVT-HTW-1671-SPEC-003
+2026-08-30T19:33:59+08:00 cdea0af6-40bc-4cc9-b407-c4d2a8abd752 EVT-HTW-1671-IMP-003
+IMP-003 status READY; git commit 110a26e4abe80b2db0c70c6f1b284ddf0f176b73.
+
+COMMAND 3: visual observation of审核工作台 at SCN-005
+The visible navigation lists SCN-001 through SCN-009. Each row shows the scenario ID, its acceptance state, and business result only. No priority field and no “未设” placeholder is visible. Screenshot is ART-008.
