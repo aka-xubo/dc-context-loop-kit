@@ -11,6 +11,8 @@
 
 它不重新定义需求，不替代验收矩阵，也不产生新的业务状态。实现计划默认不需要人工审批；只有包含高风险实现决策时，才触发条件式人工门禁。
 
+实现计划还必须保存完成前复核结果。复核发生在开发自测之后、固定 commit 和发布 `READY` 之前；自测前另有一次只检查计划覆盖的预检。程序复核负责确定性结构和 Git 事实，Agent 复核负责逐 AST 语义判断，两者均通过后才能发布 `IMP-*`。
+
 ## 上下文盘点
 
 在创建第一个实现切片前，读取并记录：
@@ -61,5 +63,17 @@
 ## 状态和交付
 
 `PLANNED`、`IN_PROGRESS`、`BLOCKED` 和切片状态只用于本地执行计划。`READY` 表示所有实现和应用前置条件完成、无 blocker、定义未变化且已固定完整 Git commit。
+
+### 完成前复核记录
+
+`implementation_plan.completion_review` 至少包含：
+
+- `status: PASSED`；
+- `performed_after_self_test: true`；
+- `preflight.status: PASSED`，表示自测前覆盖预检已通过；
+- `program.status: PASSED`、执行命令和报告定位；
+- `semantic.status: PASSED`、逐 AST reviewed 结果、实现/测试定位和语义疑点。
+
+程序检查不能从文件存在推断业务行为；Agent 不能用测试名称、退出码或“全部通过”代替逐 AST 语义判断。失败时记录原因并保持计划非 READY。
 
 实现计划保存在本地，编码、调试、开发测试和阻塞过程不写入 Issue。`READY` 和完整 commit 成立后，节点协调器发布一个新的 `IMP-*` 完成交付事实，再把控制权交回 `dc-context-loop`，由总协调器决定是否进入正式验收。

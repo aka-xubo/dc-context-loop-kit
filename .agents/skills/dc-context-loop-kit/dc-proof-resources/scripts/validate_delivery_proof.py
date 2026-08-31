@@ -668,6 +668,50 @@ def validate_plan(project: Project, requirement_id: str, document: dict[str, Any
     v.require(not missing_assertions, path, f"实现计划缺少 AST 覆盖: {', '.join(sorted(missing_assertions))}")
     if status == "READY":
         v.require(not as_list(plan.get("blockers")), path, "READY 实现计划不能存在 blockers")
+    validate_completion_review(plan, path, v, assertion_ids, required=False)
+
+
+def validate_completion_review(
+    plan: dict[str, Any],
+    path: Path,
+    validation: Validation,
+    assertion_ids: set[str],
+    *,
+    required: bool,
+) -> None:
+    review = plan.get("completion_review")
+    if review is None:
+        if required:
+            validation.errors.append(f"{path}: READY 实现计划缺少 completion_review")
+        return
+    item = as_dict(review)
+    required_keys = {"status", "performed_after_self_test", "preflight", "program", "semantic"}
+    validation.require(set(item) == required_keys, path, "completion_review 必须且只能包含 status、performed_after_self_test、preflight、program、semantic")
+    validation.require(item.get("status") in {"PENDING", "FAILED", "PASSED"}, path, "completion_review.status 非法")
+    validation.require(isinstance(item.get("performed_after_self_test"), bool), path, "completion_review.performed_after_self_test 必须为布尔值")
+    preflight = as_dict(item.get("preflight"))
+    validation.require(set(preflight) == {"status", "report"}, path, "completion_review.preflight 字段不完整")
+    validation.require(preflight.get("status") in {"PENDING", "FAILED", "PASSED"}, path, "completion_review.preflight.status 非法")
+    validation.require(preflight.get("report") is None or is_nonempty(preflight.get("report")), path, "completion_review.preflight.report 不能为空")
+    program = as_dict(item.get("program"))
+    validation.require(set(program) == {"status", "command", "report", "findings"}, path, "completion_review.program 字段不完整")
+    validation.require(program.get("status") in {"PENDING", "FAILED", "PASSED"}, path, "completion_review.program.status 非法")
+    validation.require(program.get("command") is None or is_nonempty(program.get("command")), path, "completion_review.program.command 不能为空")
+    validation.require(program.get("report") is None or is_nonempty(program.get("report")), path, "completion_review.program.report 不能为空")
+    validation.require(isinstance(program.get("findings"), list), path, "completion_review.program.findings 必须是数组")
+    semantic = as_dict(item.get("semantic"))
+    validation.require(set(semantic) == {"status", "reviewed_assertions", "findings"}, path, "completion_review.semantic 字段不完整")
+    validation.require(semantic.get("status") in {"PENDING", "FAILED", "PASSED"}, path, "completion_review.semantic.status 非法")
+    reviewed = as_list(semantic.get("reviewed_assertions"))
+    validation.require(all(isinstance(ref, str) and ref in assertion_ids for ref in reviewed), path, "completion_review.semantic.reviewed_assertions 包含不存在的 AST")
+    validation.require(isinstance(semantic.get("findings"), list), path, "completion_review.semantic.findings 必须是数组")
+    if required:
+        validation.require(item.get("status") == "PASSED", path, "READY 实现计划 completion_review.status 必须为 PASSED")
+        validation.require(item.get("performed_after_self_test") is True, path, "READY 实现计划必须记录复核发生在自测之后")
+        validation.require(preflight.get("status") == "PASSED" and is_nonempty(preflight.get("report")), path, "READY 实现计划的自测前覆盖预检必须通过并有报告")
+        validation.require(program.get("status") == "PASSED" and is_nonempty(program.get("command")) and is_nonempty(program.get("report")) and not as_list(program.get("findings")), path, "READY 实现计划的程序化完成复核必须通过且无 findings")
+        validation.require(semantic.get("status") == "PASSED" and not as_list(semantic.get("findings")), path, "READY 实现计划的语义完成复核必须通过且无 findings")
+        validation.require(set(reviewed) >= assertion_ids, path, "READY 实现计划必须逐一记录全部 AST 的语义复核")
 
 
 def artifact_path(root: Path, location: str) -> Path:
@@ -1241,6 +1285,9 @@ def application_ready(project: Project, requirement_id: str, validation: Validat
         validation.require(as_dict(readiness.get(key)).get("status") in {"COMPLETED", "NOT_REQUIRED"}, path, f"readiness.{key} 未完成")
     for journey in as_list(readiness.get("external_journeys")):
         validation.require(as_dict(journey).get("status") == "COMPLETED", path, f"外部旅程未完成: {as_dict(journey).get('provider')}")
+    matrix = project.matrices.get(requirement_id)
+    _, assertion_ids, _ = matrix_ids(matrix)
+    validate_completion_review(plan, path, validation, assertion_ids, required=True)
 
 
 def main() -> int:

@@ -173,6 +173,13 @@ def implementation_event(
         "known_limits": [],
         "repository": {"worktree_root": "/tmp/example-worktree", "git_toplevel": "/tmp/example-worktree"},
         "git_commit": git_commit,
+        "completion_review": {
+            "status": "PASSED",
+            "performed_after_self_test": True,
+            "preflight": {"status": "PASSED", "report": "artifacts/completion-preflight.txt"},
+            "program": {"status": "PASSED", "command": "python3 review_implementation.py", "report": "artifacts/completion-program.txt", "findings": []},
+            "semantic": {"status": "PASSED", "reviewed_assertions": ["AST-001"], "findings": []},
+        },
     }
 
     return {
@@ -227,6 +234,33 @@ def acceptance_event(
             "impact": {"affected_ids": ["REQ-001"], "next_actions": []},
         },
     }
+
+
+def implementation_plan_document() -> dict:
+    return {
+        "document_type": "implementation_plan",
+        "implementation_plan": {
+            "status": "READY",
+            "slices": [{
+                "id": "SLICE-001",
+                "title": "实现登录失败响应",
+                "kind": "behavior_slice",
+                "objective": "返回可理解的失败原因",
+                "production_refs": ["server/auth/login_handler.go"],
+                "test_refs": ["server/auth/login_handler_test.go"],
+                "assertion_refs": ["AST-001"],
+                "status": "COMPLETED",
+            }],
+            "test_strategy": {"exemptions": []},
+            "completion_review": {
+                "status": "PASSED",
+                "performed_after_self_test": True,
+                "preflight": {"status": "PASSED", "report": "artifacts/preflight.txt"},
+                "program": {"status": "PASSED", "command": "python3 review_implementation.py", "report": "artifacts/program.txt", "findings": []},
+                "semantic": {"status": "PASSED", "reviewed_assertions": ["AST-001"], "findings": []},
+            },
+        },
+    }
 class ContextLoopTest(unittest.TestCase):
     def test_ready_waits_for_explicit_acceptance_authorization(self) -> None:
         loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
@@ -252,6 +286,22 @@ class ContextLoopTest(unittest.TestCase):
         self.assertIn("业务承诺不变，但场景、CHK、AST、验证责任或验证方式变化", loop_skill)
         self.assertIn("SPEC_CHANGE", slicing_skill)
         self.assertIn("只有业务承诺变化才发布 REQ", slicing_skill)
+
+    def test_implementation_requires_completion_review_before_ready(self) -> None:
+        implementation_skill = (SCRIPT_DIR.parent.parent / "dc-implementation-execution" / "SKILL.md").read_text(encoding="utf-8")
+        planning_reference = (SCRIPT_DIR.parent.parent / "dc-proof-resources" / "references" / "implementation-planning.md").read_text(encoding="utf-8")
+        self.assertIn("自测前覆盖预检", implementation_skill)
+        self.assertIn("自测后程序化完成复核", implementation_skill)
+        self.assertIn("自测后 Agent 语义完成复核", implementation_skill)
+        self.assertIn("固定 commit → 发布 READY", implementation_skill)
+        self.assertIn("completion_review", planning_reference)
+
+    def test_completion_review_assigns_program_and_agent_responsibilities(self) -> None:
+        loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        implementation_skill = (SCRIPT_DIR.parent.parent / "dc-implementation-execution" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("程序检查计划覆盖、引用、文件变更、开发检查记录、阻塞状态和 Git 事实", loop_skill)
+        self.assertIn("程序不得从“文件存在”推断业务行为已经实现", implementation_skill)
+        self.assertIn("Agent 必须逐一对照当前 REQ、SPEC", implementation_skill)
 
     def test_spec_confirmation_requires_clickable_draft_link(self) -> None:
         loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
@@ -504,6 +554,115 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("go test ./server/auth/...", content)
             self.assertIn("实现工作树：/tmp/example-worktree", content)
             self.assertIn("Git 根目录：/tmp/example-worktree", content)
+            self.assertIn("完成前复核", content)
+            self.assertIn("自测之后", content)
+
+    def test_implementation_requires_completion_review(self) -> None:
+        document = implementation_event("EVT-IMP-MISSING-REVIEW")
+        del document["event"]["implementation"]["completion_review"]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("completion_review", result.stderr)
+
+    def test_programmatic_completion_review_catches_files_not_in_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in ("server/auth/login_handler.go", "server/auth/login_handler_test.go"):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("initial\n", encoding="utf-8")
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=tester", "-c", "user.email=test@example.com", "commit", "-qm", "initial"], check=True)
+            (root / "README.md").write_text("second commit\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "README.md"], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=tester", "-c", "user.email=test@example.com", "commit", "-qm", "second"], check=True)
+            commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+            event = implementation_event("EVT-IMP-REVIEW-FAIL", git_commit=commit)
+            event["event"]["implementation"]["repository"] = {"worktree_root": str(root), "git_toplevel": str(root)}
+            event_file = root / "event.yaml"
+            plan_file = root / "plan.yaml"
+            report_file = root / "report.txt"
+            event_file.write_text(yaml.safe_dump(event, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            plan_file.write_text(yaml.safe_dump(implementation_plan_document(), allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run([sys.executable, str(SCRIPT_DIR / "review_implementation.py"), "--plan-file", str(plan_file), "--event-file", str(event_file), "--report-file", str(report_file)], check=False, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("变更面文件出现在 commit diff", result.stderr + result.stdout)
+
+    def test_programmatic_completion_review_passes_when_files_are_in_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in ("server/auth/login_handler.go", "server/auth/login_handler_test.go"):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("initial\n", encoding="utf-8")
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=tester", "-c", "user.email=test@example.com", "commit", "-qm", "initial"], check=True)
+            (root / "server/auth/login_handler.go").write_text("implemented\n", encoding="utf-8")
+            (root / "server/auth/login_handler_test.go").write_text("asserted\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=tester", "-c", "user.email=test@example.com", "commit", "-qm", "implementation"], check=True)
+            commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+            event = implementation_event("EVT-IMP-REVIEW-OK", git_commit=commit)
+            event["event"]["implementation"]["repository"] = {"worktree_root": str(root), "git_toplevel": str(root)}
+            event_file = root / "event.yaml"
+            plan_file = root / "plan.yaml"
+            event_file.write_text(yaml.safe_dump(event, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            plan_file.write_text(yaml.safe_dump(implementation_plan_document(), allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run([sys.executable, str(SCRIPT_DIR / "review_implementation.py"), "--plan-file", str(plan_file), "--event-file", str(event_file)], check=False, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("COMPLETION_REVIEW: PASSED", result.stdout)
+
+    def test_programmatic_completion_review_supports_utf8_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            production = root / "文档/实现计划.md"
+            test_file = root / "tests/实现计划_test.md"
+            for path in (production, test_file):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("initial\n", encoding="utf-8")
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=tester", "-c", "user.email=test@example.com", "commit", "-qm", "initial"], check=True)
+            production.write_text("implemented\n", encoding="utf-8")
+            test_file.write_text("asserted\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=tester", "-c", "user.email=test@example.com", "commit", "-qm", "implementation"], check=True)
+            commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+            event = implementation_event("EVT-IMP-REVIEW-UTF8", git_commit=commit)
+            event["event"]["implementation"]["repository"] = {"worktree_root": str(root), "git_toplevel": str(root)}
+            event["event"]["implementation"]["change_surface"]["production_files"] = ["文档/实现计划.md"]
+            event["event"]["implementation"]["change_surface"]["test_files"] = ["tests/实现计划_test.md"]
+            event_file = root / "event.yaml"
+            plan_file = root / "plan.yaml"
+            event_file.write_text(yaml.safe_dump(event, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            plan_file.write_text(yaml.safe_dump(implementation_plan_document(), allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run([sys.executable, str(SCRIPT_DIR / "review_implementation.py"), "--plan-file", str(plan_file), "--event-file", str(event_file)], check=False, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+
+    def test_preflight_checks_current_matrix_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            plan = implementation_plan_document()
+            plan["implementation_plan"]["status"] = "IN_PROGRESS"
+            plan_file = root / "plan.yaml"
+            matrix_file = root / "验收矩阵.md"
+            plan_file.write_text(yaml.safe_dump(plan, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            matrix_file.write_text("""```yaml\ndocument_type: acceptance_matrix\nacceptance_matrix:\n  checks:\n  - id: CHK-001\n    required: true\n    blocking: true\n    assertions:\n    - id: AST-001\n```\n""", encoding="utf-8")
+            result = subprocess.run([sys.executable, str(SCRIPT_DIR / "review_implementation.py"), "--phase", "preflight", "--plan-file", str(plan_file), "--matrix-file", str(matrix_file)], check=False, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("当前矩阵必需 AST 均有切片覆盖", result.stdout)
 
     def test_verify_git_binding_accepts_real_head(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

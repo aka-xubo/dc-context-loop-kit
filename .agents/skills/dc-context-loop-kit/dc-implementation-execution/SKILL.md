@@ -96,11 +96,54 @@ human_gate:
 “测试麻烦”不是豁免理由。工程结构就绪后，继续对可单元验证的行为切片执行测试先行。
 RED/GREEN/REFACTOR 只记录实现过程，不生成正式 RUN/ART。
 
+## 完成前复核门禁
+
+完成前复核是 IMPLEMENTATION 节点内部的强制门禁，位于开发自测之后、固定 Git commit 和发布 `IMP-* READY` 之前。它不等同于正式 ACCEPTANCE，不生成 `RUN`、`ART` 或 `SATISFIED` 结论。
+
+门禁顺序固定为：
+
+```text
+自测前覆盖预检 → 编码与开发自测 → 程序化完成复核 → Agent 语义完成复核 → 固定 commit → 发布 READY
+```
+
+### 自测前覆盖预检
+
+在计划从 `PLANNED` 进入 `IN_PROGRESS` 或开始自测前，先执行程序化覆盖预检：
+
+- 当前有效 SPEC 的每个必需 AST 至少被一个实现切片引用，且引用属于当前定义；
+- 每个 `behavior_slice` 都有 `production_refs` 和 `test_refs`，或记录完整、合法的 TDD 豁免；
+- 不存在无效引用、未决问题或 blocker。
+
+预检失败时不得开始受影响切片的编码或自测。该预检只检查计划结构，不判断代码是否已经实现业务行为。
+
+### 自测后程序化完成复核
+
+所有切片的开发自测完成后，运行 `scripts/review_implementation.py`（或等价的受控程序）检查：
+
+- 计划中的切片、CHK/AST 引用、事件 `completed_items` 和 `spec_refs` 一致；
+- 声明的生产文件、测试文件和脚本在目标 commit 中存在，并且实际出现在该 commit 的变更集合中；
+- 所有切片、交付面、readiness、blocker 和 open question 满足 READY 条件；
+- 开发检查有逐条命令和可复核结果，不能只写“全部通过”；
+- 目标仓库、Git 根目录、commit 和 tracked 工作区状态一致。
+
+程序复核必须输出可定位报告；任一硬检查失败时不得进入语义复核或发布 `READY`。程序不得从“文件存在”推断业务行为已经实现。
+
+### 自测后 Agent 语义完成复核
+
+程序复核通过后，Agent 必须逐一对照当前 REQ、SPEC、实现计划、代码 diff 和开发自测结果，填写 `completion_review.semantic`：
+
+- 每个已声明完成的行为 AST 都要说明生产实现、测试结果与目标语义的对应关系；
+- 仅有文件或测试引用但行为未实现、测试未覆盖目标语义或交付摘要不真实时，复核失败，回到 IMPLEMENTATION 修复；
+- 发现业务结果、范围、失败规则或验收观察面变化时，停止发布并路由到 REQ/SPEC；
+- 只有全部行为 AST 通过语义复核且没有未决语义疑点，才能固定 commit。
+
+语义复核是 Agent 的判断，不得由脚本用文件名、测试名、退出码或文本匹配替代。复核结论必须记录 reviewed AST、结论、实现定位、测试定位和遗留疑点。
+
 ## IMPLEMENTATION 完成事件
 
 节点协调器只在实现真正完成后发布一次事件。事件必须使用新的 `IMP-*`，直接保存 `implementation` 完成对象，并在 `impact.next_actions` 指向总协调器下一步。完成对象必须记录 `repository.worktree_root`、`repository.git_toplevel` 和完整 `git_commit`，供独立验收直接定位代码。事件发布前使用 `prepare_event.py --verify-git` 校验仓库根目录、commit 存在性、HEAD 一致性和 tracked 工作区干净；校验失败不得发布。事件发布后重新读取 Issue，确认评论正文和机器块存在，再继续执行。后续修复或再次实现使用新的 `IMP-*`，不修改旧事件，也不提交实现差异表。
 
-完成对象必须从本地计划和真实工作区归纳 `requirement_ref`、`spec_refs`、交付 `summary`、已完成 `completed_items`、实际 `change_surface`、`development_checks`、`known_limits`、`repository` 和完整 `git_commit`。`completed_items` 保留切片 ID、类型、目标以及 CHK/AST 引用；`change_surface` 只记录本次实际涉及的文件、脚本、接口、数据库、配置、依赖和外部契约，不保存计划面，也不与上一次实现比较。
+完成对象必须从本地计划和真实工作区归纳 `requirement_ref`、`spec_refs`、交付 `summary`、已完成 `completed_items`、实际 `change_surface`、`development_checks`、`known_limits`、`repository`、完整 `git_commit` 和 `completion_review`。`completed_items` 保留切片 ID、类型、目标以及 CHK/AST 引用；`change_surface` 只记录本次实际涉及的文件、脚本、接口、数据库、配置、依赖和外部契约，不保存计划面，也不与上一次实现比较。`completion_review` 必须记录自测前预检、程序化复核和 Agent 语义复核均通过。
 
 ## READY 准入
 
@@ -111,7 +154,10 @@ RED/GREEN/REFACTOR 只记录实现过程，不生成正式 RUN/ART。
 3. 所有必须实现的 AST 都有切片覆盖；
 4. 所有切片、交付面和验收前置条件均完成或明确标记为 `NOT_REQUIRED`；
 5. 没有未处理 blocker，生产代码和测试引用已记录；
-6. 应用就绪校验通过，并已形成完整 Git commit；事件中的仓库路径和 commit 已通过 `--verify-git` 校验。
+6. 自测前覆盖预检已通过；
+7. 自测后程序化完成复核已通过并生成报告；
+8. 自测后 Agent 语义完成复核已通过，所有行为 AST 均已 reviewed；
+9. 应用就绪校验通过，并已形成完整 Git commit；事件中的仓库路径和 commit 已通过 `--verify-git` 校验。
 
 `READY` 只表示该次实现交付的 commit 具备交给验收角色验证的条件，不代表 `SATISFIED`。完成实现后固定 commit，再由 `dc-acceptance-verification` 执行正式 RUN/ART；提交变化会使当前验收证据失效。
 

@@ -136,6 +136,8 @@ REQ 事件保存发布时的完整快照。SPEC 事件可以保存完整快照�
 
 `READY` 只表示本次实现已经完成并具备交给验收角色验证的条件，不代表验收通过。人类评论展示本次摘要、完成项、实际变更面、开发检查、已知限制和 commit。
 
+实现节点在发布 `IMPLEMENTATION READY` 前必须完成“自测前覆盖预检 → 自测后程序化完成复核 → 自测后 Agent 语义完成复核”。程序检查计划覆盖、引用、文件变更、开发检查记录、阻塞状态和 Git 事实；Agent 逐 AST 判断实现是否真正满足当前语义。任一程序硬检查或语义复核失败，都不得发布 `READY`，应留在 IMPLEMENTATION 或按变化路由到 SPEC/REQ。完成前复核属于实现内部门禁，不是正式验收，不生成 RUN/ART/ACC。
+
 ### ACCEPTANCE 最终结论
 
 验收过程全部在本地完成。`dc-acceptance-verification` 负责执行当前实现并形成 RUN/ART，`dc-acceptance-closure` 负责审查证据并逐 AST 裁决；两者完成后由总协调器发布一条独立的 `ACCEPTANCE` 事实事件。该事件使用新的 `ACC-*`，直接保存完整 `acceptance` 结论，绑定当前 REQ、SPEC、IMPLEMENTATION 和唯一 Git commit，保存 RUN、ART、逐 AST 结果和最终 `status`：`SATISFIED`、`NOT_SATISFIED`、`BLOCKED` 或 `INCOMPLETE`。
@@ -227,6 +229,8 @@ python3 <skill-dir>/scripts/prepare_event.py \
 
 脚本会生成一份人类可读评论和机器块，并返回 `duplicate`。REQ 使用完整快照；SPEC 使用完整快照或 `base_spec_ref + changes` 增量；IMPLEMENTATION/ACCEPTANCE 使用独立完成事实。脚本只校验和渲染，不读取历史、不合并增量、不自动路由。相同 `event_id` 已存在时跳过重复发布；不同 `IMP-*` 或 `ACC-*` 应保留为新的时间线记录。
 
+IMPLEMENTATION 事件准备前还必须在目标实现计划和事件上运行 `dc-context-loop/scripts/review_implementation.py`。该程序执行自测前覆盖预检的结果核对、自测后结构/Git/变更面硬检查，并输出可定位报告；随后由 Agent 完成逐 AST 语义复核并写入 `completion_review`。没有程序复核报告或语义复核未覆盖全部行为 AST 时，不得调用 `prepare_event.py` 发布 READY 事件。
+
 REQ 评论展示本次完整快照；SPEC 评论展示本次完整快照或增量变化；实现完成评论展示本次摘要、交付面、开发检查和限制，不展示上一次实现对比。摘要由结构化事件生成，不手工维护第二份内容。
 
 ### 4. 实现和验收
@@ -286,5 +290,6 @@ multica issue comment add <issue-ref> \
 - `dc-grilling/SKILL.md`：节点内部按需使用的澄清算法；
 - `references/event-contract.md`：四个交付内容节点和事件示例；
 - `scripts/prepare_event.py`：校验并渲染事件评论；
+- `scripts/review_implementation.py`：在发布 IMPLEMENTATION READY 前执行程序化完成复核；
 - `dc-issue-intake`：获取完整 Issue 原始时间线，作为模型上下文来源；
 - `evals/evals.json`：典型循环场景。

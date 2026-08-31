@@ -302,6 +302,27 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
             nonempty(value, "implementation.known_limits[]")
         validate_repository(implementation["repository"], "implementation.repository")
         require(isinstance(implementation["git_commit"], str) and GIT_COMMIT_RE.fullmatch(implementation["git_commit"]), "implementation.git_commit 必须是完整 Git commit")
+        review = implementation.get("completion_review")
+        require(isinstance(review, dict), "IMPLEMENTATION 缺少 completion_review")
+        if isinstance(review, dict):
+            require(review.get("status") == "PASSED", "completion_review.status 必须为 PASSED")
+            require(review.get("performed_after_self_test") is True, "completion_review.performed_after_self_test 必须为 true")
+            for key in ("preflight", "program", "semantic"):
+                require(isinstance(review.get(key), dict), f"completion_review.{key} 必须是对象")
+            preflight = review.get("preflight", {})
+            require(preflight.get("status") == "PASSED", "completion_review.preflight.status 必须为 PASSED")
+            require(isinstance(preflight.get("report"), str) and preflight["report"].strip(), "completion_review.preflight.report 必须非空")
+            program = review.get("program", {})
+            require(program.get("status") == "PASSED", "completion_review.program.status 必须为 PASSED")
+            require(isinstance(program.get("command"), str) and program["command"].strip(), "completion_review.program.command 必须非空")
+            require(isinstance(program.get("report"), str) and program["report"].strip(), "completion_review.program.report 必须非空")
+            require(program.get("findings") == [], "completion_review.program.findings 必须为空")
+            semantic = review.get("semantic", {})
+            require(semantic.get("status") == "PASSED", "completion_review.semantic.status 必须为 PASSED")
+            require(isinstance(semantic.get("reviewed_assertions"), list) and semantic["reviewed_assertions"], "completion_review.semantic.reviewed_assertions 必须为非空数组")
+            require(semantic.get("findings") == [], "completion_review.semantic.findings 必须为空")
+            implementation_assertions = {value for value in implementation.get("spec_refs", []) if isinstance(value, str) and value.startswith("AST-")}
+            require(implementation_assertions.issubset(set(semantic.get("reviewed_assertions", []))), "completion_review.semantic 必须覆盖 implementation.spec_refs 中的全部 AST")
         slice_ids = []
         for index, item in enumerate(implementation["completed_items"]):
             require(isinstance(item, dict), f"implementation.completed_items[{index}] 必须是对象")
@@ -505,6 +526,9 @@ def render_implementation(event: dict[str, Any]) -> str:
         f"| `{check['command']}` | {check['status']} | {check.get('summary', '无')} |"
         for check in implementation["development_checks"]
     )
+    review = implementation["completion_review"]
+    semantic = review["semantic"]
+    reviewed = ", ".join(semantic["reviewed_assertions"])
     actions = "\n".join(f"- {item['action']}：{item['owner']}" for item in impact["next_actions"]) or "- 待分析"
     return f"""[DP:IMPLEMENTATION] {event['subject_id']} 实现完成
 
@@ -532,6 +556,13 @@ def render_implementation(event: dict[str, Any]) -> str:
 | 命令 | 结果 | 摘要 |
 |---|---|---|
 {checks}
+
+## 完成前复核
+
+- 复核时机：自测之后、固定 commit 和发布 READY 之前
+- 自测前覆盖预检：{review['preflight']['status']}（报告：{review['preflight']['report']}）
+- 程序化完成复核：{review['program']['status']}（命令：`{review['program']['command']}`；报告：{review['program']['report']}）
+- Agent 语义完成复核：{review['semantic']['status']}（已复核 AST：{reviewed}）
 
 ## 已知限制
 

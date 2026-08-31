@@ -106,6 +106,6 @@ specification:
 
 ## IMPLEMENTATION 与 ACCEPTANCE
 
-实现和验收保持独立事实模型：实现计划、编码、调试和本地验收过程不发布过程事件；完成后分别发布完整 `IMPLEMENTATION` 或 `ACCEPTANCE` 事实。二者都保存 `repository.worktree_root`、`repository.git_toplevel` 和完整 `git_commit`；发布前使用 `prepare_event.py --verify-git` 校验路径、commit 对象、当前 HEAD 和 tracked 工作区。ACCEPTANCE 必须显式保存 `mode: targeted | full`、`scope_refs` 和 `req_completion_impact`：指定一个 `IMP-*` 的单次验收使用 `targeted`，未指定 IMP 的当前有效 SPEC 全量验收使用 `full`；只有 `full` 模式的 `SATISFIED` 才能影响 REQ 完成状态。具体字段和示例见 Context Loop 主技能及对应 Schema。
+实现和验收保持独立事实模型：实现计划、编码、调试和本地验收过程不发布过程事件；完成后分别发布完整 `IMPLEMENTATION` 或 `ACCEPTANCE` 事实。IMPLEMENTATION 在发布 `READY` 前必须完成自测前覆盖预检、自测后程序化完成复核和自测后 Agent 语义完成复核，并在 `completion_review` 中记录三者均通过及逐 AST 语义复核结果。二者都保存 `repository.worktree_root`、`repository.git_toplevel` 和完整 `git_commit`；发布前使用 `prepare_event.py --verify-git` 校验路径、commit 对象、当前 HEAD 和 tracked 工作区。ACCEPTANCE 必须显式保存 `mode: targeted | full`、`scope_refs` 和 `req_completion_impact`：指定一个 `IMP-*` 的单次验收使用 `targeted`，未指定 IMP 的当前有效 SPEC 全量验收使用 `full`；只有 `full` 模式的 `SATISFIED` 才能影响 REQ 完成状态。具体字段和示例见 Context Loop 主技能及对应 Schema。
 
 讨论不是事件。高影响歧义由 `dc-grilling` 在当前对话中处理，收束后直接生成上述 REQ 或 SPEC 快照。

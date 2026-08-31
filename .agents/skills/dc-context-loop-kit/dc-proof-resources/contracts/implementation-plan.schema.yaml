@@ -58,6 +58,37 @@ properties:
         properties:
           default: {const: tdd}
           exemptions: {type: array}
+      completion_review:
+        type: object
+        additionalProperties: false
+        required: [status, performed_after_self_test, preflight, program, semantic]
+        properties:
+          status: {enum: [PENDING, FAILED, PASSED]}
+          performed_after_self_test: {type: boolean}
+          preflight:
+            type: object
+            additionalProperties: false
+            required: [status, report]
+            properties:
+              status: {enum: [PENDING, FAILED, PASSED]}
+              report: {type: [string, 'null']}
+          program:
+            type: object
+            additionalProperties: false
+            required: [status, command, report, findings]
+            properties:
+              status: {enum: [PENDING, FAILED, PASSED]}
+              command: {type: [string, 'null']}
+              report: {type: [string, 'null']}
+              findings: {type: array}
+          semantic:
+            type: object
+            additionalProperties: false
+            required: [status, reviewed_assertions, findings]
+            properties:
+              status: {enum: [PENDING, FAILED, PASSED]}
+              reviewed_assertions: {type: array, items: {type: string, pattern: '^AST-[A-Za-z0-9_-]+$'}}
+              findings: {type: array}
       blockers: {type: array}
       slices:
         type: array
