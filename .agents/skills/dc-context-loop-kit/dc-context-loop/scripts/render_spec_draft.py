@@ -78,6 +78,26 @@ def render_object_tables(specification: dict[str, Any], *, title: str) -> str:
 {assertion_table(specification['assertions'])}"""
 
 
+def scenario_details(items: list[dict[str, Any]], *, heading: str) -> str:
+    if not items:
+        return f"### {heading}\n\n无"
+    sections = [f"### {heading}（{len(items)} 个独立场景）"]
+    for item in items:
+        given = "；".join(item.get("given", [])) or "无"
+        then = "；".join(f"`{outcome['id']}` {outcome['statement']}" for outcome in item.get("then", [])) or "无"
+        sections.extend([
+            "",
+            f"#### `{item['id']}` {cell(item['title'])}",
+            "",
+            f"- 业务结果：{cell(item['business_result'])}",
+            f"- Given：{cell(given)}",
+            f"- When：{cell(item['when'])}",
+            f"- Then：{cell(then)}",
+            f"- 交付面：{cell(', '.join(item.get('delivery_surfaces', [])) or '无')}",
+        ])
+    return "\n".join(sections)
+
+
 def merge(base: dict[str, Any], delta: dict[str, Any]) -> dict[str, Any]:
     result = {
         "requirement_ref": base["requirement_ref"],
@@ -119,7 +139,7 @@ def render(event: dict[str, Any], specification: dict[str, Any], effective: dict
         for operation, key in (("新增", "added"), ("修改", "modified")):
             sections.extend(["", f"### {operation}：SCN 表", "", scenario_table(changes[key]["scenarios"]), "", f"### {operation}：CHK 表", "", check_table(changes[key]["checks"]), "", f"### {operation}：AST 表", "", assertion_table(changes[key]["assertions"])])
         sections.extend(["", "### 删除", "", f"- SCN：{event_tool.display(changes['removed']['scenarios'])}", f"- CHK：{event_tool.display(changes['removed']['checks'])}", f"- AST：{event_tool.display(changes['removed']['assertions'])}"])
-    sections.extend(["", "## 合并后的当前有效规格", "", render_object_tables(effective, title="当前有效")])
+    sections.extend(["", "## 合并后的当前有效规格", "", f"本规格共 {len(effective['scenarios'])} 个独立验收场景。", "", scenario_details(effective["scenarios"], heading="逐场景审查"), "", render_object_tables(effective, title="当前有效")])
     sections.extend(["", "## 未决事项", "", event_tool.list_text(current.get("open_questions", [])), "", event_tool.render_machine_block(event)])
     return "\n".join(sections) + "\n"
 

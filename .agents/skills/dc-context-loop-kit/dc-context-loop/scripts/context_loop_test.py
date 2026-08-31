@@ -426,6 +426,9 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("CHK-001", content)
             self.assertIn("AST-002", content)
             self.assertIn("DEEP_CREW_EVENT_START", content)
+            self.assertIn("2 个独立场景", content)
+            self.assertIn("#### `SCN-001`", content)
+            self.assertIn("#### `SCN-002`", content)
 
     def test_spec_requires_spec_subject_id(self) -> None:
         document = specification_event("EVT-SPEC-MISSING-ID")
