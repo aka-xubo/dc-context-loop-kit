@@ -171,6 +171,7 @@ def implementation_event(
             "summary": "登录处理器测试通过。",
         }],
         "known_limits": [],
+        "repository": {"worktree_root": "/tmp/example-worktree", "git_toplevel": "/tmp/example-worktree"},
         "git_commit": git_commit,
     }
 
@@ -206,6 +207,7 @@ def acceptance_event(
         "mode": mode,
         "scope_refs": {"scenarios": ["SCN-001"], "checks": ["CHK-001"], "assertions": ["AST-001"]},
         "req_completion_impact": "NONE" if mode == "targeted" else "ELIGIBLE",
+        "repository": {"worktree_root": "/tmp/example-worktree", "git_toplevel": "/tmp/example-worktree"},
         "git_commit": git_commit,
         "runs": [{"id": run_id, "phase": "api_verification", "check_refs": ["CHK-001"], "assertion_refs": ["AST-001"], "status": "PASSED"}],
         "artifacts": [{"id": artifact_id, "type": "api_exchange", "location": f"artifacts/{run_id}.json"}],
@@ -497,6 +499,40 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("server/auth/login_handler.go", content)
             self.assertIn("POST /api/login", content)
             self.assertIn("go test ./server/auth/...", content)
+            self.assertIn("实现工作树：/tmp/example-worktree", content)
+            self.assertIn("Git 根目录：/tmp/example-worktree", content)
+
+    def test_verify_git_binding_accepts_real_head(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "README.md").write_text("ok\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "README.md"], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=tester", "-c", "user.email=test@example.com", "commit", "-qm", "init"], check=True)
+            commit = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+            document = implementation_event("EVT-IMP-GIT-OK", git_commit=commit)
+            document["event"]["implementation"]["repository"] = {"worktree_root": str(root), "git_toplevel": str(root)}
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run([sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--verify-git", "--output-dir", str(output_dir)], check=False, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_verify_git_binding_rejects_fake_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            (root / "README.md").write_text("ok\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "README.md"], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=tester", "-c", "user.email=test@example.com", "commit", "-qm", "init"], check=True)
+            document = implementation_event("EVT-IMP-GIT-BAD", git_commit="b" * 40)
+            document["event"]["implementation"]["repository"] = {"worktree_root": str(root), "git_toplevel": str(root)}
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run([sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--verify-git", "--output-dir", str(output_dir)], check=False, capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Git 校验失败", result.stderr)
 
     def test_implementation_rejects_unknown_fields(self) -> None:
         document = implementation_event("EVT-IMP-WITH-UNKNOWN")

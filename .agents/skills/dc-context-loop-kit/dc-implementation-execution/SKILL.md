@@ -98,9 +98,9 @@ RED/GREEN/REFACTOR 只记录实现过程，不生成正式 RUN/ART。
 
 ## IMPLEMENTATION 完成事件
 
-节点协调器只在实现真正完成后发布一次事件。事件必须使用新的 `IMP-*`，直接保存 `implementation` 完成对象，并在 `impact.next_actions` 指向总协调器下一步。事件发布后重新读取 Issue，确认评论正文和机器块存在，再继续执行。后续修复或再次实现使用新的 `IMP-*`，不修改旧事件，也不提交实现差异表。
+节点协调器只在实现真正完成后发布一次事件。事件必须使用新的 `IMP-*`，直接保存 `implementation` 完成对象，并在 `impact.next_actions` 指向总协调器下一步。完成对象必须记录 `repository.worktree_root`、`repository.git_toplevel` 和完整 `git_commit`，供独立验收直接定位代码。事件发布前使用 `prepare_event.py --verify-git` 校验仓库根目录、commit 存在性、HEAD 一致性和 tracked 工作区干净；校验失败不得发布。事件发布后重新读取 Issue，确认评论正文和机器块存在，再继续执行。后续修复或再次实现使用新的 `IMP-*`，不修改旧事件，也不提交实现差异表。
 
-完成对象必须从本地计划和真实工作区归纳 `requirement_ref`、`spec_refs`、交付 `summary`、已完成 `completed_items`、实际 `change_surface`、`development_checks`、`known_limits` 和完整 `git_commit`。`completed_items` 保留切片 ID、类型、目标以及 CHK/AST 引用；`change_surface` 只记录本次实际涉及的文件、脚本、接口、数据库、配置、依赖和外部契约，不保存计划面，也不与上一次实现比较。
+完成对象必须从本地计划和真实工作区归纳 `requirement_ref`、`spec_refs`、交付 `summary`、已完成 `completed_items`、实际 `change_surface`、`development_checks`、`known_limits`、`repository` 和完整 `git_commit`。`completed_items` 保留切片 ID、类型、目标以及 CHK/AST 引用；`change_surface` 只记录本次实际涉及的文件、脚本、接口、数据库、配置、依赖和外部契约，不保存计划面，也不与上一次实现比较。
 
 ## READY 准入
 
@@ -111,7 +111,7 @@ RED/GREEN/REFACTOR 只记录实现过程，不生成正式 RUN/ART。
 3. 所有必须实现的 AST 都有切片覆盖；
 4. 所有切片、交付面和验收前置条件均完成或明确标记为 `NOT_REQUIRED`；
 5. 没有未处理 blocker，生产代码和测试引用已记录；
-6. 应用就绪校验通过，并已形成完整 Git commit。
+6. 应用就绪校验通过，并已形成完整 Git commit；事件中的仓库路径和 commit 已通过 `--verify-git` 校验。
 
 `READY` 只表示该次实现交付的 commit 具备交给验收角色验证的条件，不代表 `SATISFIED`。完成实现后固定 commit，再由 `dc-acceptance-verification` 执行正式 RUN/ART；提交变化会使当前验收证据失效。
 

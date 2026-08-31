@@ -126,11 +126,13 @@ REQ 事件保存发布时的完整快照。SPEC 事件可以保存完整快照�
 
 ### IMPLEMENTATION 完成交付
 
-每个 `IMP-*` 代表一次已经完成的实现交付。实现计划、编码、调试和开发测试在本地完成；完成后新建一个 `IMP-*` 完成事实。事件直接保存 `implementation` 完成对象，至少包含 `status: READY`、`requirement_ref`、`spec_refs`、`summary`、`completed_items`、`change_surface`、`development_checks`、`known_limits` 和完整 `git_commit`。
+每个 `IMP-*` 代表一次已经完成的实现交付。实现计划、编码、调试和开发测试在本地完成；完成后新建一个 `IMP-*` 完成事实。事件直接保存 `implementation` 完成对象，至少包含 `status: READY`、`requirement_ref`、`spec_refs`、`summary`、`completed_items`、`change_surface`、`development_checks`、`known_limits`、`repository` 和完整 `git_commit`。`repository` 必须记录 `worktree_root` 与 `git_toplevel`，供独立验收 Agent 直接定位代码。
 
 完整时间线保留全部 `IMP-*`。路由到验收时，模型选择引用当前 REQ/SPEC 且仍然适用的 `READY` 实现；验收事件通过 `implementation_refs` 明确本次使用的实现。
 
-`change_surface` 按以下字段记录本次实际交付：`production_files`、`test_files`、`scripts`、`new_interfaces`、`changed_interfaces`、`database_changes`、`configuration_changes`、`dependency_changes`、`external_contract_changes`。这些是实现追踪信息，不是验收证据；代码细节和逐行差异由 Git commit/diff 负责。
+`change_surface` 按以下字段记录本次实际交付：`production_files`、`test_files`、`scripts`、`new_interfaces`、`changed_interfaces`、`database_changes`、`configuration_changes`、`dependency_changes`、`external_contract_changes`。这些是实现追踪信息，不是验收证据；代码细节和逐行差异由 Git commit/diff 负责。实现评论必须在人类摘要中展示实现工作树、Git 根目录和完整 commit。
+
+发布 IMPLEMENTATION 或 ACCEPTANCE 事件前，必须在目标 `repository.worktree_root` 执行 Git 绑定校验：确认 `git_toplevel`、完整 40 位 `git_commit`、commit 对象存在、commit 等于当前 `HEAD`，并且没有未提交的 tracked 修改。使用事件准备工具时必须带 `--verify-git`；校验失败不得生成可发布评论。
 
 `READY` 只表示本次实现已经完成并具备交给验收角色验证的条件，不代表验收通过。人类评论展示本次摘要、完成项、实际变更面、开发检查、已知限制和 commit。
 

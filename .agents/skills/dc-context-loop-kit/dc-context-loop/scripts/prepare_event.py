@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -287,7 +288,7 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
         implementation = event.get("implementation")
         require(isinstance(implementation, dict), "IMPLEMENTATION 缺少完成交付对象")
         require(implementation.get("status") == "READY", "IMPLEMENTATION status 必须为 READY")
-        for field in ("requirement_ref", "spec_refs", "summary", "completed_items", "change_surface", "development_checks", "known_limits", "git_commit"):
+        for field in ("requirement_ref", "spec_refs", "summary", "completed_items", "change_surface", "development_checks", "known_limits", "repository", "git_commit"):
             require(field in implementation, f"IMPLEMENTATION 缺少字段: {field}")
         require(isinstance(implementation["requirement_ref"], str) and implementation["requirement_ref"].startswith("REQ-"), "implementation.requirement_ref 必须为 REQ-*")
         nonempty(implementation["summary"], "implementation.summary")
@@ -299,6 +300,7 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
         require(isinstance(implementation["known_limits"], list), "implementation.known_limits 必须是数组")
         for value in implementation["known_limits"]:
             nonempty(value, "implementation.known_limits[]")
+        validate_repository(implementation["repository"], "implementation.repository")
         require(isinstance(implementation["git_commit"], str) and GIT_COMMIT_RE.fullmatch(implementation["git_commit"]), "implementation.git_commit 必须是完整 Git commit")
         slice_ids = []
         for index, item in enumerate(implementation["completed_items"]):
@@ -329,9 +331,10 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
         acceptance = event.get("acceptance")
         require(isinstance(acceptance, dict), "ACCEPTANCE 缺少完整 acceptance 结论对象")
         require(acceptance.get("status") in {"SATISFIED", "NOT_SATISFIED", "BLOCKED", "INCOMPLETE"}, "acceptance.status 非法")
-        for field in ("requirement_ref", "spec_refs", "implementation_refs", "mode", "scope_refs", "req_completion_impact", "git_commit", "runs", "artifacts", "assertion_results", "reason"):
+        for field in ("requirement_ref", "spec_refs", "implementation_refs", "mode", "scope_refs", "req_completion_impact", "repository", "git_commit", "runs", "artifacts", "assertion_results", "reason"):
             require(field in acceptance, f"ACCEPTANCE 缺少字段: {field}")
         nonempty(acceptance["reason"], "acceptance.reason")
+        validate_repository(acceptance["repository"], "acceptance.repository")
         require(isinstance(acceptance["git_commit"], str) and GIT_COMMIT_RE.fullmatch(acceptance["git_commit"]), "acceptance.git_commit 必须是完整 Git commit")
         require(isinstance(acceptance["spec_refs"], list), "acceptance.spec_refs 必须是数组")
         require(isinstance(acceptance["implementation_refs"], list), "acceptance.implementation_refs 必须是数组")
@@ -387,6 +390,52 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
             nonempty(action.get("action"), f"next_actions[{index}].action")
             nonempty(action.get("owner"), f"next_actions[{index}].owner")
     return {"event_id": event_id, "node": node, "subject_id": subject_id}
+
+
+def validate_repository(value: Any, label: str) -> None:
+    require(isinstance(value, dict), f"{label} 必须是对象")
+    ensure_keys(value, {"worktree_root", "git_toplevel"}, label)
+    nonempty(value.get("worktree_root"), f"{label}.worktree_root")
+    nonempty(value.get("git_toplevel"), f"{label}.git_toplevel")
+
+
+def verify_git_binding(event: dict[str, Any]) -> None:
+    if event["node"] == "IMPLEMENTATION":
+        result = event["implementation"]
+    elif event["node"] == "ACCEPTANCE":
+        result = event["acceptance"]
+    else:
+        return
+    repository = result["repository"]
+    worktree = repository["worktree_root"]
+
+    def git(*args: str) -> str:
+        completed = subprocess.run(
+            ["git", "-C", worktree, *args],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        require(completed.returncode == 0, f"Git 校验失败（{worktree}）：{completed.stderr.strip() or completed.stdout.strip()}")
+        return completed.stdout.strip()
+
+    top_level = git("rev-parse", "--show-toplevel")
+    expected_top_level = str(Path(repository["git_toplevel"]).resolve())
+    actual_top_level = str(Path(top_level).resolve())
+    require(actual_top_level == expected_top_level, f"repository.git_toplevel 与 Git 实际根目录不一致: {top_level}")
+    commit = result["git_commit"]
+    require(len(commit) == 40, "Git 绑定校验要求 40 位完整 commit")
+    git("cat-file", "-e", f"{commit}^{{commit}}")
+    head = git("rev-parse", "HEAD")
+    require(head == commit, f"事件 git_commit 与当前 HEAD 不一致: HEAD={head}")
+    status = subprocess.run(
+        ["git", "-C", worktree, "status", "--porcelain", "--untracked-files=no"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    require(status.returncode == 0, f"无法读取 Git 工作区状态: {status.stderr.strip()}")
+    require(not status.stdout.strip(), "目标 Git 仓库存在未提交的 tracked 修改")
 
 
 def load_comments(path: Path | None) -> list[dict[str, Any]]:
@@ -468,6 +517,8 @@ def render_implementation(event: dict[str, Any]) -> str:
 - 状态：{implementation['status']}
 - 需求：{implementation['requirement_ref']}
 - 规格：{', '.join(implementation['spec_refs']) or '无'}
+- 实现工作树：{implementation['repository']['worktree_root']}
+- Git 根目录：{implementation['repository']['git_toplevel']}
 - Git commit：{implementation['git_commit']}
 
 ## 已完成内容
@@ -520,6 +571,8 @@ def render_acceptance(event: dict[str, Any]) -> str:
 - 需求：{acceptance['requirement_ref']}
 - 规格：{', '.join(acceptance['spec_refs']) or '无'}
 - 实现：{', '.join(acceptance['implementation_refs']) or '无'}
+- 实现工作树：{acceptance['repository']['worktree_root']}
+- Git 根目录：{acceptance['repository']['git_toplevel']}
 - Git commit：{acceptance['git_commit'] or '无'}
 
 ## 验收范围
@@ -772,11 +825,14 @@ def main() -> int:
     parser.add_argument("--event-file", required=True, type=Path)
     parser.add_argument("--issue", required=True)
     parser.add_argument("--comments-json", type=Path)
+    parser.add_argument("--verify-git", action="store_true", help="验证事件仓库路径、commit、HEAD 和 tracked 工作区状态")
     parser.add_argument("--output-dir", required=True, type=Path)
     args = parser.parse_args()
     try:
         event = parse_document(args.event_file.resolve())
         info = validate(event)
+        if args.verify_git:
+            verify_git_binding(event)
         duplicate = info["event_id"] in existing_event_ids(load_comments(args.comments_json))
         args.output_dir.mkdir(parents=True, exist_ok=True)
         output = args.output_dir / f"{info['event_id']}.md"

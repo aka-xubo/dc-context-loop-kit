@@ -21,6 +21,6 @@ RUN 只有在所引 ART 中逐 AST 存在非空 `expected`、`observed`、`statu
 
 验收收口不保存测试路径、生产代码路径、执行状态，也不修改业务定义或回填矩阵。
 
-每次验收报告都绑定本次使用的 REQ、SCN、CHK 和目标 Git commit；后续工作从最新评论中的当前定义和最新实现继续。每条业务依赖由当前矩阵中引用其 `DEP-*` ID 的必需阻断 CHK 证明；不读取关联 REQ 的场景、摘要、验收或递归状态。
+每次验收报告都绑定本次使用的 REQ、SCN、CHK、目标 Git commit 和实现仓库定位；后续工作从最新评论中的当前定义和最新实现继续。验收前的仓库定位只确认路径与 commit 能读取正确实现内容，不承担业务验收职责。每条业务依赖由当前矩阵中引用其 `DEP-*` ID 的必需阻断 CHK 证明；不读取关联 REQ 的场景、摘要、验收或递归状态。
 
 Deep Crew 结论只允许 `SATISFIED`、`NOT_SATISFIED`、`BLOCKED` 或 `INCOMPLETE`。本技能负责依据当前证据裁决 AST 和总体验收结论；返回结果必须包含当前 REQ/SPEC/IMPLEMENTATION 引用、唯一 Git commit、RUN、ART、逐 AST 的预期/实际/状态/证据引用，以及非空裁决原因。总协调器为每次本地验收创建新的 `ACC-*`，并根据本结论负责后续节点路由；不得更新旧验收结论。

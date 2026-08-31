@@ -72,6 +72,9 @@ event:
     known_limits:
       - SPEC 增量草案合并要求调用方显式提供完整基础 SPEC 快照；模型负责从 Issue 完整历史恢复并提供该基础快照。
       - 尚未执行正式验收，等待用户明确授权；READY 不代表验收通过。
+    repository:
+      worktree_root: /Users/apple/coding/dc-loop
+      git_toplevel: /Users/apple/coding/dc-loop
     git_commit: 4126115731a408dfa627c27b7df6141573a5e55d
   impact:
     affected_ids:

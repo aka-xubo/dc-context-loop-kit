@@ -235,7 +235,7 @@ $defs:
   implementation_result:
     type: object
     additionalProperties: false
-    required: [status, requirement_ref, spec_refs, summary, completed_items, change_surface, development_checks, known_limits, git_commit]
+    required: [status, requirement_ref, spec_refs, summary, completed_items, change_surface, development_checks, known_limits, repository, git_commit]
     properties:
       status: {const: READY}
       requirement_ref: {type: string, pattern: '^REQ-[A-Za-z0-9_-]+$'}
@@ -281,11 +281,12 @@ $defs:
             status: {enum: [PASSED, SKIPPED]}
             summary: {type: string, minLength: 1}
       known_limits: {type: array, items: {type: string, minLength: 1}}
+      repository: {$ref: '#/$defs/repository_location'}
       git_commit: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
   acceptance_result:
     type: object
     additionalProperties: false
-    required: [status, requirement_ref, spec_refs, implementation_refs, mode, scope_refs, req_completion_impact, git_commit, runs, artifacts, assertion_results, reason]
+    required: [status, requirement_ref, spec_refs, implementation_refs, mode, scope_refs, req_completion_impact, repository, git_commit, runs, artifacts, assertion_results, reason]
     properties:
       status: {enum: [SATISFIED, NOT_SATISFIED, BLOCKED, INCOMPLETE]}
       requirement_ref: {type: string, pattern: '^REQ-[A-Za-z0-9_-]+$'}
@@ -301,6 +302,7 @@ $defs:
           checks: {type: array, minItems: 1, items: {type: string, pattern: '^CHK-[A-Za-z0-9_-]+$'}}
           assertions: {type: array, minItems: 1, items: {type: string, pattern: '^AST-[A-Za-z0-9_-]+$'}}
       req_completion_impact: {enum: [NONE, ELIGIBLE]}
+      repository: {$ref: '#/$defs/repository_location'}
       git_commit: {type: string, pattern: '^[0-9a-f]{40}([0-9a-f]{24})?$'}
       runs:
         type: array
@@ -337,3 +339,10 @@ $defs:
             status: {enum: [PASSED, FAILED, BLOCKED]}
             artifact_refs: {type: array, items: {type: string, pattern: '^ART-[A-Za-z0-9_-]+$'}}
       reason: {type: string, minLength: 1}
+  repository_location:
+    type: object
+    additionalProperties: false
+    required: [worktree_root, git_toplevel]
+    properties:
+      worktree_root: {type: string, minLength: 1}
+      git_toplevel: {type: string, minLength: 1}
