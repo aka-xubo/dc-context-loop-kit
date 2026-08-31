@@ -1,0 +1,148 @@
+document_type: deep_crew_delivery_event
+event:
+  event_id: EVT-HTW-1671-SPEC-006
+  created_at: '2026-08-31T14:35:00+08:00'
+  author: dino.xu
+  node: SPEC
+  subject_id: SPEC-006
+  reason: 记录 Git commit 防错、SPEC 草案层级清晰度和独立验收仓库定位三个验收定义改进项。
+  references:
+    issue: HTW-1671
+  specification:
+    requirement_ref: REQ-DC-CONTEXT-LOOP-SEMANTIC
+    base_spec_ref: SPEC-005
+    changes:
+      added:
+        scenarios:
+          - id: SCN-013
+            title: 实现事件绑定真实 Git commit
+            business_result: 实现和验收能够使用可验证的真实代码版本，避免错误或不存在的 commit 进入交付证明。
+            given:
+              - Agent 已完成代码实现并准备发布 IMPLEMENTATION 事件
+              - 本地实现仓库存在当前 HEAD commit
+              - 事件需要记录完整 Git commit
+            when: Agent 生成或校验 IMPLEMENTATION/ACCEPTANCE 事件
+            then:
+              - id: THEN-029
+                statement: 事件中的 git_commit 是完整 40 位 SHA，并且在目标 Git 仓库中真实存在
+              - id: THEN-030
+                statement: 事件中的 git_commit 与当前实现 HEAD 一致；不一致时事件工具拒绝生成或发布
+              - id: THEN-031
+                statement: 事件生成前检查目标仓库没有未处理的 tracked 修改，避免代码版本与证明内容漂移
+            delivery_surfaces: [skill]
+          - id: SCN-014
+            title: SPEC 草案统一展示独立验收场景
+            business_result: 负责人能够快速看出本次新增的每个独立验收场景，并分别审查其业务结果、条件、动作和结果。
+            given:
+              - SPEC 草案包含多个互不关联的新验收场景
+              - 草案同时包含本次变更说明和人类可读表格
+            when: 负责人打开本地 SPEC 草案进行审查
+            then:
+              - id: THEN-032
+                statement: 草案明确说明本次新增场景的数量，并逐一列出每个 SCN 的稳定 ID 和标题
+              - id: THEN-033
+                statement: 每个新增 SCN 使用统一层级和统一结构展示 business_result、Given、When、Then 与交付面
+              - id: THEN-034
+                statement: 场景概览、详细场景、CHK/AST 表格和 YAML 机器块之间不存在把多个独立 SCN 合并成模糊并列说明的表达
+            delivery_surfaces: [skill]
+          - id: SCN-015
+            title: 实现事件提供验收前代码仓库定位
+            business_result: 验收 Agent 能够根据 IMPLEMENTATION 事件提供的仓库根目录或工作树路径和 Git commit，直接读取正确的实现内容，而不需要全盘检索或提前执行业务验收。
+            given:
+              - IMPLEMENTATION 事件绑定一个本地 Git commit
+              - 验收 Agent 可能运行在独立工作树或线上 Agent 环境
+            when: 验收 Agent 接收 IMPLEMENTATION 事件并准备定位代码
+            then:
+              - id: THEN-035
+                statement: IMPLEMENTATION 事件记录可直接访问的本地仓库根目录或工作树路径
+              - id: THEN-036
+                statement: 实现评论的人类摘要展示代码路径、Git 根目录和绑定 commit
+              - id: THEN-037
+                statement: 验收 Agent 使用事件路径和 Git commit 读取并核对正确的实现内容；该步骤只完成代码定位与版本核对，不执行业务验收
+            delivery_surfaces: [skill]
+        checks:
+          - id: CHK-013
+            scenario_ids: [SCN-013]
+            dependency_ids: []
+            verification_type: unit
+            responsibility: 使用真实和伪造 Git commit 事件验证存在性、当前 HEAD 一致性、完整 SHA 和工作区状态门禁。
+            required: true
+            blocking: true
+            evidence_requirements:
+              required_artifact_types: [command_output]
+            external_verification: null
+          - id: CHK-014
+            scenario_ids: [SCN-014]
+            dependency_ids: []
+            verification_type: unit
+            responsibility: 生成包含多个独立 SCN 的完整和增量 SPEC 草案，检查数量、统一标题层级、逐场景详情和跨表格/YAML 一致性。
+            required: true
+            blocking: true
+            evidence_requirements:
+              required_artifact_types: [command_output]
+            external_verification: null
+          - id: CHK-015
+            scenario_ids: [SCN-015]
+            dependency_ids: []
+            verification_type: unit
+            responsibility: 使用带仓库根目录或工作树路径和 Git commit 的 IMPLEMENTATION 事件，检查 Agent 能直接读取正确实现内容；不执行业务验收或降级全盘检索。
+            required: true
+            blocking: true
+            evidence_requirements:
+              required_artifact_types: [command_output]
+            external_verification: null
+        assertions:
+          - id: AST-028
+            check_id: CHK-013
+            outcome_refs: [SCN-013.THEN-029]
+            assertion_type: semantic
+            description: IMPLEMENTATION/ACCEPTANCE 事件只接受完整且真实存在于目标 Git 仓库的 commit；格式正确但不存在的 SHA 被拒绝。
+          - id: AST-029
+            check_id: CHK-013
+            outcome_refs: [SCN-013.THEN-030]
+            assertion_type: semantic
+            description: 事件 git_commit 与目标仓库当前 HEAD 不一致时，事件准备工具明确拒绝，不生成可发布评论。
+          - id: AST-030
+            check_id: CHK-013
+            outcome_refs: [SCN-013.THEN-031]
+            assertion_type: semantic
+            description: 目标仓库存在未处理 tracked 修改时，事件准备流程拒绝固定交付版本或明确报告版本漂移。
+          - id: AST-031
+            check_id: CHK-014
+            outcome_refs: [SCN-014.THEN-032]
+            assertion_type: semantic
+            description: SPEC 草案明确声明本次新增场景数量，并逐一列出每个独立 SCN 的稳定 ID 和标题。
+          - id: AST-032
+            check_id: CHK-014
+            outcome_refs: [SCN-014.THEN-033]
+            assertion_type: semantic
+            description: 每个新增 SCN 均以相同标题层级和字段结构单独展示，不能因场景无关联而合并为一段综合说明。
+          - id: AST-033
+            check_id: CHK-014
+            outcome_refs: [SCN-014.THEN-034]
+            assertion_type: semantic
+            description: 场景概览、详细表格、CHK/AST 映射和 YAML 机器块中的 SCN 数量、ID、标题及引用一致。
+          - id: AST-034
+            check_id: CHK-015
+            outcome_refs: [SCN-015.THEN-035]
+            assertion_type: semantic
+            description: IMPLEMENTATION 事件包含本地仓库根目录或工作树路径，验收 Agent 无需全盘搜索即可获得定位入口。
+          - id: AST-035
+            check_id: CHK-015
+            outcome_refs: [SCN-015.THEN-036]
+            assertion_type: semantic
+            description: IMPLEMENTATION 人类可读评论同时展示代码路径、Git 根目录和绑定 commit。
+          - id: AST-036
+            check_id: CHK-015
+            outcome_refs: [SCN-015.THEN-037]
+            assertion_type: semantic
+            description: 验收 Agent 使用事件提供的仓库路径和 Git commit 读取并核对正确实现内容；该定位步骤不执行业务验收。
+      modified:
+        scenarios: []
+        checks: []
+        assertions: []
+      removed:
+        scenarios: []
+        checks: []
+        assertions: []
+    open_questions: []
