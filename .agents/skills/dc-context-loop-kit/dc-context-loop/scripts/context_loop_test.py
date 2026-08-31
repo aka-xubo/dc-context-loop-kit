@@ -53,6 +53,7 @@ def specification_event(event_id: str, *, scenario_id: str = "SCN-001", title: s
             "author": "tester",
             "node": "SPEC",
             "reason": "整理当前完整验收规格",
+            "subject_id": "SPEC-001",
             "specification": {
                 "requirement_ref": "REQ-001",
                 "scenarios": [{
@@ -94,6 +95,7 @@ def incremental_specification_event(event_id: str = "EVT-SPEC-DELTA") -> dict:
             "author": "tester",
             "node": "SPEC",
             "reason": "记录相对基础 SPEC 的增量变化",
+            "subject_id": "SPEC-002",
             "specification": {
                 "requirement_ref": "REQ-001",
                 "base_spec_ref": "SPEC-002",
@@ -358,6 +360,8 @@ class ContextLoopTest(unittest.TestCase):
             for subject_id in ("SCN-001", "CHK-001", "AST-001"):
                 self.assertIn(subject_id, content)
             self.assertIn("当前验收规格", content)
+            self.assertIn("SPEC-001 当前验收规格", content)
+            self.assertIn("subject_id: SPEC-001", content)
 
     def test_incremental_spec_validates_and_renders_changes(self) -> None:
         document = incremental_specification_event()
@@ -378,6 +382,41 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("SPEC-002", content)
             self.assertIn("新增", content)
             self.assertIn("SCN-002", content)
+            self.assertIn("SPEC-002 验收规格增量", content)
+
+    def test_spec_requires_spec_subject_id(self) -> None:
+        document = specification_event("EVT-SPEC-MISSING-ID")
+        del document["event"]["subject_id"]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("event.subject_id 必须是非空字符串", result.stderr)
+
+    def test_spec_rejects_non_spec_subject_id(self) -> None:
+        document = specification_event("EVT-SPEC-BAD-ID")
+        document["event"]["subject_id"] = "IMP-001"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("SPEC 节点不能使用 subject_id: IMP-001", result.stderr)
 
     def test_incremental_spec_rejects_modified_object_without_id(self) -> None:
         document = incremental_specification_event("EVT-SPEC-DELTA-BAD")

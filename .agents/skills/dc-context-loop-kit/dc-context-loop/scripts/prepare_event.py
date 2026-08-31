@@ -15,7 +15,7 @@ BLOCK_RE = re.compile(
     re.DOTALL,
 )
 EVENT_ID_RE = re.compile(r"^EVT-[A-Za-z0-9_-]+$")
-SUBJECT_ID_RE = re.compile(r"^(IMP|ACC)-[A-Za-z0-9_-]+$")
+SUBJECT_ID_RE = re.compile(r"^(SPEC|IMP|ACC)-[A-Za-z0-9_-]+$")
 REQ_ID_RE = re.compile(r"^REQ-[A-Za-z0-9_-]+$")
 SCN_ID_RE = re.compile(r"^SCN-[A-Za-z0-9_-]+$")
 CHK_ID_RE = re.compile(r"^CHK-[A-Za-z0-9_-]+$")
@@ -265,18 +265,20 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
     common_fields = {"event_id", "created_at", "author", "node", "reason", "references"}
     node_fields = {
         "REQ": common_fields | {"requirement"},
-        "SPEC": common_fields | {"specification"},
+        "SPEC": common_fields | {"subject_id", "specification"},
         "IMPLEMENTATION": common_fields | {"subject_id", "implementation", "impact"},
         "ACCEPTANCE": common_fields | {"subject_id", "acceptance", "impact"},
     }
     ensure_keys(event, node_fields[node], "event")
     subject_id = event.get("subject_id")
-    if node in {"REQ", "SPEC"}:
-        if node == "REQ":
-            validate_requirement(event.get("requirement"))
-        else:
-            validate_specification(event.get("specification"))
+    if node == "REQ":
+        validate_requirement(event.get("requirement"))
         subject_id = None
+    elif node == "SPEC":
+        subject_id = nonempty(subject_id, "event.subject_id")
+        require(SUBJECT_ID_RE.fullmatch(subject_id) is not None, "subject_id 格式非法")
+        require(subject_id.startswith("SPEC-"), f"{node} 节点不能使用 subject_id: {subject_id}")
+        validate_specification(event.get("specification"))
     else:
         subject_id = nonempty(subject_id, "event.subject_id")
         require(SUBJECT_ID_RE.fullmatch(subject_id) is not None, "subject_id 格式非法")
@@ -558,7 +560,7 @@ def render_spec(event: dict[str, Any]) -> str:
         added = changes["added"]
         modified = changes["modified"]
         removed = changes["removed"]
-        return f"""[DP:SPEC] 验收规格增量
+        return f"""[DP:SPEC] {event['subject_id']} 验收规格增量
 
 ## 关联需求
 
@@ -638,7 +640,7 @@ def render_spec(event: dict[str, Any]) -> str:
         f"{assertion['assertion_type']} | {assertion['description']} |"
         for assertion in specification["assertions"]
     )
-    return f"""[DP:SPEC] 当前验收规格
+    return f"""[DP:SPEC] {event['subject_id']} 当前验收规格
 
 ## 关联需求
 

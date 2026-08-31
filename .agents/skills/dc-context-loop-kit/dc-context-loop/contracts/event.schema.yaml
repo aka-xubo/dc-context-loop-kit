@@ -19,7 +19,7 @@ properties:
       reason: {type: string, minLength: 1}
       requirement: {$ref: '#/$defs/requirement_snapshot'}
       specification: {$ref: '#/$defs/specification_snapshot'}
-      subject_id: {type: string, pattern: '^(IMP|ACC)-[A-Za-z0-9_-]+$'}
+      subject_id: {type: string, pattern: '^(SPEC|IMP|ACC)-[A-Za-z0-9_-]+$'}
       implementation: {$ref: '#/$defs/implementation_result'}
       acceptance: {$ref: '#/$defs/acceptance_result'}
       impact: {$ref: '#/$defs/impact'}
@@ -43,14 +43,15 @@ properties:
       - if:
           properties: {node: {const: SPEC}}
         then:
-          required: [specification]
+          required: [subject_id, specification]
           not:
             anyOf:
-              - required: [subject_id]
               - required: [requirement]
               - required: [implementation]
               - required: [acceptance]
               - required: [impact]
+          properties:
+            subject_id: {type: string, pattern: '^SPEC-[A-Za-z0-9_-]+$'}
       - if:
           properties: {node: {const: IMPLEMENTATION}}
         then:
