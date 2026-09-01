@@ -564,6 +564,33 @@ class ContextLoopTest(unittest.TestCase):
         self.assertIn("确认前必须给出可点击的草案文件链接", design_skill)
         self.assertIn("确认前不得发布对应 REQ/SPEC 事件", loop_skill)
 
+    def test_issue_intake_is_loop_owned_and_same_turn_context_is_reused(self) -> None:
+        loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        grilling_skill = (SCRIPT_DIR.parent.parent / "dc-grilling" / "SKILL.md").read_text(encoding="utf-8")
+        implementation_skill = (SCRIPT_DIR.parent.parent / "dc-implementation-execution" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("首次处理 Issue、进入正式 ACCEPTANCE 前，或用户明确要求重新读取", loop_skill)
+        self.assertIn("普通节点交互复用当前 Agent 会话中的 Issue context", loop_skill)
+        self.assertIn("intake 覆盖状态为 `FULL`", loop_skill)
+        self.assertIn("节点技能不得自行调用 `dc-issue-intake`", loop_skill)
+        self.assertIn("本技能不自行调用 `dc-issue-intake`", grilling_skill)
+        self.assertIn("进入本技能后不调用 `dc-issue-intake`", implementation_skill)
+        self.assertNotIn("每次进入本技能都必须执行", loop_skill)
+        self.assertNotIn("节点技能返回结果后重新调用 `dc-issue-intake`", loop_skill)
+        self.assertNotIn("每次开始都通过 `dc-issue-intake`", grilling_skill)
+        self.assertNotIn("进入本技能后先调用 `dc-issue-intake`", implementation_skill)
+
+    def test_event_publication_uses_displayed_body_and_status_without_post_read(self) -> None:
+        loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        implementation_skill = (SCRIPT_DIR.parent.parent / "dc-implementation-execution" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("事件发布前，先在当前 Agent 上下文中完整展示人类摘要和机器事件块", loop_skill)
+        self.assertIn("实际上传正文必须复用已展示的同一内容", loop_skill)
+        self.assertIn("2xx 判定成功，非 2xx 判定失败，超时或无响应判定结果未知", loop_skill)
+        self.assertIn("不执行发布确认后的 Issue 重读", loop_skill)
+        self.assertIn("发布 API 的正文必须复用同一内容", implementation_skill)
+        self.assertIn("发布结果只依据 API 状态码分类，不在发布后重新读取 Issue", implementation_skill)
+        self.assertIn("只有用户提供或确认唯一 Issue 标识后才能执行 intake", loop_skill)
+        self.assertIn("确认前不得调用 Issue 读取 API", loop_skill)
+
     def test_snapshot_rejects_unknown_fields(self) -> None:
         document = requirement_event("EVT-REQ-WITH-UNKNOWN")
         document["event"]["legacy"] = {"value": "不属于当前事件结构"}

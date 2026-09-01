@@ -1,6 +1,6 @@
 ---
 name: dc-grilling
-description: 在 Deep Crew 交付循环中，为 REQ、SPEC（SCN/CHK/AST）、IMPLEMENTATION 或 ACCEPTANCE 提供按需的对话澄清。用户要求 grilling、追问、澄清、设计讨论、压力测试方案，或目标内容存在会改变结果的多个合理解释时使用。完整读取 Issue 上下文并查明环境事实，只追问当前动作所需的高影响决策，及时收束并把确认结果交给目标节点。
+description: 在 Deep Crew 交付循环中，为 REQ、SPEC（SCN/CHK/AST）、IMPLEMENTATION 或 ACCEPTANCE 提供按需的对话澄清。由 dc-context-loop 提供当前 Issue 会话上下文，本技能查明环境事实，只追问当前动作所需的高影响决策，及时收束并把确认结果交给目标节点。
 ---
 
 # Deep Crew Grilling
@@ -9,7 +9,7 @@ description: 在 Deep Crew 交付循环中，为 REQ、SPEC（SCN/CHK/AST）、I
 
 把交付内容中的高影响歧义在当前对话里变清晰，使调用方能够安全生成 REQ、SPEC、IMPLEMENTATION 或 ACCEPTANCE 内容。它是节点内部的辅助流程，不是独立节点，也不是 Issue 时间线中的事件类型。
 
-每次开始都通过 `dc-issue-intake` 完整读取 Issue、全部评论和必要附件，再读取仓库、代码或运行环境查明可验证事实。不要让用户回答 Agent 自己能查到的问题，也不要基于陈旧缓存继续讨论。
+本技能不自行调用 `dc-issue-intake`。由 `dc-context-loop` 按读取门禁完成必要的完整 intake，并把当前 Agent 会话中的 Issue context 交给本技能复用；本技能只读取仓库、代码或运行环境查明可验证事实。不要让用户回答 Agent 自己能查到的问题，也不要基于陈旧缓存继续讨论。若当前会话没有有效 Issue context，应返回总协调器补做 intake，而不是自行读取或猜测。
 
 ## 启动尺度
 
@@ -74,4 +74,4 @@ description: 在 Deep Crew 交付循环中，为 REQ、SPEC（SCN/CHK/AST）、I
 
 ## 与 Context Loop 的关系
 
-`dc-context-loop` 负责完整读取 Issue、选择当前内容节点、调用本技能并在讨论结束后发布目标事件。本技能只负责当前对话中的事实查明、必要追问和收束，不读取或写入任何“讨论状态”。
+`dc-context-loop` 负责按读取门禁完整读取 Issue、选择当前内容节点、调用本技能并在讨论结束后发布目标事件。本技能只负责复用当前会话中的 Issue context、查明本地事实、必要追问和收束，不调用 Issue intake，也不读取或写入任何“讨论状态”。

@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "对 REQ-001 开始 grilling。先查明 Issue 和仓库里的已知事实，只提出当前能回答的问题，不要直接写需求结论。",
-      "expected_output": "完整读取上下文并先查事实，只在当前对话中提出会改变 REQ 结果的最小问题集，收束后交回 REQ 节点。",
+      "expected_output": "复用 dc-context-loop 已提供的完整上下文并先查事实，只在当前对话中提出会改变 REQ 结果的最小问题集，收束后交回 REQ 节点，不自行 intake。",
       "files": []
     },
     {

@@ -1,6 +1,6 @@
 ---
 name: dc-implementation-execution
-description: 根据已确认的 REQ、验收场景和 CHK/AST 矩阵，先盘点代码结构与项目上下文，必要时与负责人确认未决决策，再制定并执行完整实现计划。对可单元验证的行为默认执行测试先行；仅在明确工程性、外部系统或无稳定公开接口时记录豁免。
+description: 根据已确认的 REQ、验收场景和 CHK/AST 矩阵，复用 dc-context-loop 提供的 Issue 会话上下文，先盘点代码结构与项目上下文，必要时与负责人确认未决决策，再制定并执行完整实现计划。对可单元验证的行为默认执行测试先行；仅在明确工程性、外部系统或无稳定公开接口时记录豁免。
 ---
 
 # Implementation Execution
@@ -22,7 +22,7 @@ description: 根据已确认的 REQ、验收场景和 CHK/AST 矩阵，先盘点
 
 ## 制定计划前：上下文盘点
 
-进入本技能后先调用 `dc-issue-intake`，完整读取 Issue 评论，再使用 `dc-context-loop` 基于完整历史形成的当前上下文理解作为起点。若历史存在冲突或关键字段缺失，不得基于猜测继续实现。
+进入本技能后不调用 `dc-issue-intake`。由 `dc-context-loop` 在进入 IMPLEMENTATION 前按读取门禁完成必要的完整 intake，并将基于完整历史形成的当前 Issue context 放入当前 Agent 会话；本技能直接复用该上下文。若当前会话没有有效上下文、历史存在冲突或关键字段缺失，应返回 `dc-context-loop` 补做 intake 或澄清，不得自行读取或基于猜测继续实现。
 
 先完整阅读并在 `实现计划.md` 的 `context_review` 中记录依据：
 
@@ -148,7 +148,7 @@ RED/GREEN/REFACTOR 只记录实现过程，不生成正式 RUN/ART。
 
 ## IMPLEMENTATION 完成事件
 
-节点协调器只在实现真正完成后发布一次事件。事件必须使用新的 `IMP-*`，直接保存 `implementation` 完成对象，并在 `impact.next_actions` 指向总协调器下一步。完成对象必须记录 `repository.worktree_root`、`repository.git_toplevel` 和完整 `git_commit`，供独立验收直接定位代码。事件发布前使用 `prepare_event.py --verify-git` 校验仓库根目录、commit 存在性、HEAD 一致性和 tracked 工作区干净；校验失败不得发布。事件发布后重新读取 Issue，确认评论正文和机器块存在，再继续执行。后续修复或再次实现使用新的 `IMP-*`，不修改旧事件，也不提交实现差异表。
+节点协调器只在实现真正完成后发布一次事件。事件必须使用新的 `IMP-*`，直接保存 `implementation` 完成对象，并在 `impact.next_actions` 指向总协调器下一步。完成对象必须记录 `repository.worktree_root`、`repository.git_toplevel` 和完整 `git_commit`，供独立验收直接定位代码。事件发布前使用 `prepare_event.py --verify-git` 校验仓库根目录、commit 存在性、HEAD 一致性和 tracked 工作区干净；校验失败不得发布。发布前由 `dc-context-loop` 在当前 Agent 上下文中展示完整人类摘要和机器事件块，发布 API 的正文必须复用同一内容；发布结果只依据 API 状态码分类，不在发布后重新读取 Issue。后续修复或再次实现使用新的 `IMP-*`，不修改旧事件，也不提交实现差异表。
 
 完成对象必须从本地计划和真实工作区归纳 `requirement_ref`、`spec_refs`、交付 `summary`、已完成 `completed_items`、实际 `change_surface`、`development_checks`、`known_limits`、`repository`、完整 `git_commit` 和 `completion_review`。`completed_items` 保留切片 ID、类型、目标以及 CHK/AST 引用；`change_surface` 只记录本次实际涉及的文件、脚本、接口、数据库、配置、依赖和外部契约，不保存计划面，也不与上一次实现比较。`completion_review` 必须记录自测前预检、程序化复核和 Agent 语义复核均通过。
 
