@@ -16,6 +16,7 @@ BLOCK_RE = re.compile(
     re.DOTALL,
 )
 EVENT_ID_RE = re.compile(r"^EVT-[A-Za-z0-9_-]+$")
+EVENT_ID_TEXT_RE = re.compile(r"event_id：`(EVT-[A-Za-z0-9_-]+)`")
 SUBJECT_ID_RE = re.compile(r"^(SPEC|IMP|ACC)-[A-Za-z0-9_-]+$")
 REQ_ID_RE = re.compile(r"^REQ-[A-Za-z0-9_-]+$")
 SCN_ID_RE = re.compile(r"^SCN-[A-Za-z0-9_-]+$")
@@ -473,15 +474,18 @@ def existing_event_ids(comments: list[dict[str, Any]]) -> set[str]:
     found: set[str] = set()
     for item in comments:
         match = BLOCK_RE.search(str(item.get("content", "")))
-        if not match:
-            continue
-        try:
-            data = yaml.safe_load(match.group(1))
-            event = data.get("event", {}) if isinstance(data, dict) else {}
-            if isinstance(event, dict) and isinstance(event.get("event_id"), str):
-                found.add(event["event_id"])
-        except yaml.YAMLError:
-            continue
+        if match:
+            try:
+                data = yaml.safe_load(match.group(1))
+                event = data.get("event", {}) if isinstance(data, dict) else {}
+                if isinstance(event, dict) and isinstance(event.get("event_id"), str):
+                    found.add(event["event_id"])
+                    continue
+            except yaml.YAMLError:
+                pass
+        text_match = EVENT_ID_TEXT_RE.search(str(item.get("content", "")))
+        if text_match:
+            found.add(text_match.group(1))
     return found
 
 
@@ -789,13 +793,18 @@ def render_spec(event: dict[str, Any]) -> str:
 {render_machine_block(event)}"""
 
 
+def event_attachment_filename(event: dict[str, Any]) -> str:
+    subject_id = event.get("subject_id") or event["requirement"]["id"]
+    return f"{subject_id}-事件.yaml"
+
+
 def render_machine_block(event: dict[str, Any]) -> str:
-    machine = yaml.safe_dump({"document_type": "deep_crew_delivery_event", "event": event}, allow_unicode=True, sort_keys=False).strip()
-    return f"""<!-- DEEP_CREW_EVENT_START -->
-```yaml
-{machine}
-```
-<!-- DEEP_CREW_EVENT_END -->"""
+    filename = event_attachment_filename(event)
+    return f"""## 机器事件附件
+
+- event_id：`{event['event_id']}`
+- YAML 附件：`{filename}`
+- 解析方式：从 Issue comment 附件下载并解析该 YAML；评论正文不内嵌机器 YAML。"""
 
 
 def render_req(event: dict[str, Any]) -> str:
@@ -867,8 +876,11 @@ def main() -> int:
         duplicate = info["event_id"] in existing_event_ids(load_comments(args.comments_json))
         args.output_dir.mkdir(parents=True, exist_ok=True)
         output = args.output_dir / f"{info['event_id']}.md"
+        attachment = args.output_dir / event_attachment_filename(event)
+        machine = yaml.safe_dump({"document_type": "deep_crew_delivery_event", "event": event}, allow_unicode=True, sort_keys=False)
+        attachment.write_text(machine, encoding="utf-8")
         output.write_text(render(event), encoding="utf-8")
-        print(json.dumps({"issue": args.issue, "event_id": info["event_id"], "duplicate": duplicate, "comment_file": str(output.resolve())}, ensure_ascii=False, indent=2))
+        print(json.dumps({"issue": args.issue, "event_id": info["event_id"], "duplicate": duplicate, "comment_file": str(output.resolve()), "attachment_file": str(attachment.resolve())}, ensure_ascii=False, indent=2))
         return 0
     except (EventError, OSError, ValueError, json.JSONDecodeError, yaml.YAMLError) as error:
         print(json.dumps({"error": str(error)}, ensure_ascii=False), file=sys.stderr)

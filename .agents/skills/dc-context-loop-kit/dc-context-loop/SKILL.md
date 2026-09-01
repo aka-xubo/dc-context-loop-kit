@@ -144,14 +144,14 @@ REQ 事件保存发布时的完整快照。SPEC 事件可以保存完整快照�
 
 ## 事件契约
 
-完整契约见 `contracts/event.schema.yaml`。评论必须包含人类摘要和机器块：
+完整契约见 `contracts/event.schema.yaml`。评论必须包含人类摘要、事件标识和机器 YAML 附件引用；机器 YAML 不内嵌评论正文：
 
 ```text
-<!-- DEEP_CREW_EVENT_START -->
-```yaml
-...
-```
-<!-- DEEP_CREW_EVENT_END -->
+## 机器事件附件
+
+- event_id：`EVT-...`
+- YAML 附件：`<subject-id>-事件.yaml`
+- 解析方式：从 Issue comment 附件下载并解析 YAML。
 ```
 
 REQ 事件最小结构：
@@ -201,7 +201,7 @@ REQ 每次都发布当时的完整内容。SPEC 首次建立或需要重建基�
 3. 普通节点交互复用当前 Agent 会话中的 Issue context，不再次调用完整 intake。
 4. 检查冲突、当前定义状态、实现状态和验收状态，根据当前影响选择一个最小可推进节点，不跨过必要门禁。
 5. 调用该节点的协调技能；节点不得自行 intake。实现尚未完成时不要求发布 IMPLEMENTATION 进度事件。
-6. 事件发布前，先在当前 Agent 上下文中完整展示人类摘要和机器事件块；实际上传正文必须复用已展示的同一内容。
+6. 事件发布前，先在当前 Agent 上下文中完整展示人类摘要、事件标识和附件引用；实际上传正文必须复用已展示的同一内容，并将机器 YAML 作为同一操作工作区中的附件上传。
 7. 处理发布 API 结果：2xx 判定成功，非 2xx 判定失败，超时或无响应判定结果未知；无论哪种结果都不执行发布确认后的 Issue 重读。
 8. 若仍有可安全推进的下一步，继续路由；若需要用户决策、人工门禁或外部环境，明确暂停原因。
 
@@ -241,7 +241,7 @@ python3 <skill-dir>/scripts/prepare_event.py \
 本地交付证明不是阶段副本。完整 intake 且 ACC 结论落地后，使用
 `scripts/delivery_index.py` 刷新 `docs/交付证明/<ISSUE-KEY>.md`；该文件只保存 Issue 导航和同步元数据，不纳入 Git。存在同一 Issue 的旧阶段目录或派生清单时，通过重复的 `--legacy-path` 显式指定，并同时提供 `--worktree-root`；工具只允许归档 `docs/交付证明` 下的明确路径，将其移入 `.local/dc-loop/archive/<ISSUE-KEY>/`，拒绝越界、符号链接和覆盖。检查模式发现任一指定旧路径仍存在时失败。SPEC/IMP 发布期间不刷新最终索引，索引一致性检查必须比较事件编号、event_id、评论 UUID、分类、计数、最后评论 ID 和覆盖状态。
 
-脚本会生成一份人类可读评论和机器块，并返回 `duplicate`。REQ 使用完整快照；SPEC 使用完整快照或 `base_spec_ref + changes` 增量；IMPLEMENTATION/ACCEPTANCE 使用独立完成事实。脚本只校验和渲染，不读取历史、不合并增量、不自动路由。相同 `event_id` 已存在时跳过重复发布；不同 `IMP-*` 或 `ACC-*` 应保留为新的时间线记录。
+脚本会生成一份人类可读评论和同名机器 YAML 附件，并返回 `duplicate`。REQ 使用完整快照；SPEC 使用完整快照或 `base_spec_ref + changes` 增量；IMPLEMENTATION/ACCEPTANCE 使用独立完成事实。脚本只校验和渲染，不读取历史、不合并增量、不自动路由。相同 `event_id` 已存在时跳过重复发布；不同的 `IMP-*` 或 `ACC-*` 应保留为新的时间线记录。
 
 IMPLEMENTATION 事件准备前还必须在目标实现计划和事件上运行 `dc-context-loop/scripts/review_implementation.py`。该程序执行自测前覆盖预检的结果核对、自测后结构/Git/变更面硬检查，并输出可定位报告；随后由 Agent 完成逐 AST 语义复核并写入 `completion_review`。没有程序复核报告或语义复核未覆盖全部行为 AST 时，不得调用 `prepare_event.py` 发布 READY 事件。
 
@@ -285,7 +285,7 @@ REQ 评论展示本次完整快照；SPEC 评论展示本次完整快照或增�
 
 ## 发布与安全
 
-确认事件不是重复事件后，先在当前 Agent 上下文中展示完整的人类摘要和机器事件块，再使用：
+确认事件不是重复事件后，先在当前 Agent 上下文中展示完整的人类摘要、事件标识和附件引用，再使用：
 
 ```bash
 multica issue comment add <issue-ref> \
@@ -294,7 +294,7 @@ multica issue comment add <issue-ref> \
   --output json
 ```
 
-发布 API 返回 2xx 时判定成功；返回非 2xx 时判定失败；超时或无响应时判定结果未知。发布失败或未知必须报告实际结果，不假装成功，且不得通过发布后的 Issue 重读来确认。附件应是当前事件需要的材料；上传前脱敏凭证、Token、Cookie 和个人敏感数据。
+发布 API 返回 2xx 时判定成功；返回非 2xx 时判定失败；超时或无响应时判定结果未知。事件 YAML 必须作为当前操作工作区中的附件上传；发布成功后或操作进入任一终态，按操作工作区清理规则删除本地事件 YAML。发布失败或未知必须报告实际结果，不假装成功，且不得通过发布后的 Issue 重读来确认。上传前脱敏凭证、Token、Cookie 和个人敏感数据。
 
 禁止把本地路径、测试名称、退出码或“全部通过”当作证据；必须引用可审阅的结果或 ART。不能删除或覆盖历史评论。
 

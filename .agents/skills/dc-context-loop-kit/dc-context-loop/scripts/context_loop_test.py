@@ -579,10 +579,20 @@ class ContextLoopTest(unittest.TestCase):
         self.assertNotIn("每次开始都通过 `dc-issue-intake`", grilling_skill)
         self.assertNotIn("进入本技能后先调用 `dc-issue-intake`", implementation_skill)
 
+    def test_event_attachments_are_machine_source_and_terminal_cleanup_is_documented(self) -> None:
+        loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        intake_skill = (SCRIPT_DIR.parent.parent / "dc-issue-intake" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("机器 YAML 附件", loop_skill)
+        self.assertIn("操作工作区中的附件上传", loop_skill)
+        self.assertIn("按操作工作区清理规则删除本地事件 YAML", loop_skill)
+        self.assertIn("treat the referenced YAML attachment as the machine source", intake_skill)
+        self.assertIn("parse it as `deep_crew_delivery_event`", intake_skill)
+        self.assertIn("If the attachment is missing", intake_skill)
+
     def test_event_publication_uses_displayed_body_and_status_without_post_read(self) -> None:
         loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
         implementation_skill = (SCRIPT_DIR.parent.parent / "dc-implementation-execution" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("事件发布前，先在当前 Agent 上下文中完整展示人类摘要和机器事件块", loop_skill)
+        self.assertIn("事件发布前，先在当前 Agent 上下文中完整展示人类摘要、事件标识和附件引用", loop_skill)
         self.assertIn("实际上传正文必须复用已展示的同一内容", loop_skill)
         self.assertIn("2xx 判定成功，非 2xx 判定失败，超时或无响应判定结果未知", loop_skill)
         self.assertIn("不执行发布确认后的 Issue 重读", loop_skill)
@@ -626,6 +636,24 @@ class ContextLoopTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue(json.loads(result.stdout)["duplicate"])
 
+    def test_prepare_event_detects_duplicate_from_attachment_summary(self) -> None:
+        document = requirement_event("EVT-ATTACHMENT-DUPLICATE")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            comments_file = root / "comments.json"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            comments_file.write_text(json.dumps({"comments": [{"id": "c1", "content": "## 机器事件附件\n\n- event_id：`EVT-ATTACHMENT-DUPLICATE`\n- YAML 附件：`REQ-001-事件.yaml`"}]}, ensure_ascii=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--comments-json", str(comments_file), "--output-dir", str(output_dir)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(json.loads(result.stdout)["duplicate"])
+
     def test_initial_req_renders_structured_human_sections(self) -> None:
         document = requirement_event("EVT-REQ-001")
         with tempfile.TemporaryDirectory() as temporary:
@@ -643,7 +671,13 @@ class ContextLoopTest(unittest.TestCase):
             content = (output_dir / "EVT-REQ-001.md").read_text(encoding="utf-8")
             for heading in ("## 需求目标", "## 需求陈述", "## 业务结果", "### 范围内", "### 范围外", "## 约束与依赖", "## 未决事项", "## 发布说明"):
                 self.assertIn(heading, content)
-            self.assertIn("DEEP_CREW_EVENT_START", content)
+            self.assertNotIn("DEEP_CREW_EVENT_START", content)
+            self.assertIn("EVT-REQ-001", content)
+            attachment = output_dir / "REQ-001-事件.yaml"
+            self.assertTrue(attachment.is_file())
+            machine = yaml.safe_load(attachment.read_text(encoding="utf-8"))
+            self.assertEqual(machine["event"]["event_id"], "EVT-REQ-001")
+            self.assertEqual(machine["event"]["node"], "REQ")
 
     def test_unsupported_node_is_rejected(self) -> None:
         document = {
@@ -707,7 +741,8 @@ class ContextLoopTest(unittest.TestCase):
                 self.assertIn(subject_id, content)
             self.assertIn("当前验收规格", content)
             self.assertIn("SPEC-001 当前验收规格", content)
-            self.assertIn("subject_id: SPEC-001", content)
+            self.assertNotIn("DEEP_CREW_EVENT_START", content)
+            self.assertIn("YAML 附件：`SPEC-001-事件.yaml`", content)
             self.assertIn("| SCN | 标题 | 业务结果 | Given | When | Then | 交付面 |", content)
 
     def test_incremental_spec_validates_and_renders_changes(self) -> None:
@@ -756,7 +791,8 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("SCN-002", content)
             self.assertIn("CHK-001", content)
             self.assertIn("AST-002", content)
-            self.assertIn("DEEP_CREW_EVENT_START", content)
+            self.assertNotIn("DEEP_CREW_EVENT_START", content)
+            self.assertIn("YAML 附件：`SPEC-002-事件.yaml`", content)
             self.assertIn("2 个独立场景", content)
             self.assertIn("#### `SCN-001`", content)
             self.assertIn("#### `SCN-002`", content)

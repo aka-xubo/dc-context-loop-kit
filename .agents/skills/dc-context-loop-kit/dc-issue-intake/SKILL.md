@@ -81,7 +81,7 @@ If the user pasted a frontend URL, do not assume the API URL is the same host/po
 
    Preserve every returned comment, including thread replies, and deduplicate by comment UUID. Keep this complete collection available to downstream skills; the human-readable context summary may remain concise. The intake is complete only when the final page has no next cursor. If a request fails or returns an unusable cursor, report `coverage: INCOMPLETE` and do not claim that the full timeline was read.
 
-4. Inspect the issue and comments for attachment references. If attachments are required for understanding the issue, list or download them with available Multica attachment commands or the platform tools available in the current environment.
+4. Inspect the issue and comments for attachment references. For a structured Deep Crew delivery event, treat the referenced YAML attachment as the machine source: locate it by the comment attachment metadata or the filename shown in the human summary, download it only when the event is needed for routing or execution, parse it as `deep_crew_delivery_event`, and verify its `event_id`, `node` and delivery object. If the attachment is missing, inaccessible or fails parsing, report that event as unavailable/incomplete; do not reconstruct it from the human summary.
 5. Produce an internal issue context package using the Output Contract below.
 
 ## Output Contract
