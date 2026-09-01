@@ -262,6 +262,126 @@ def implementation_plan_document() -> dict:
         },
     }
 class ContextLoopTest(unittest.TestCase):
+    def test_operation_workspace_is_project_local_and_unique(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            script = SCRIPT_DIR / "operation_workspace.py"
+            created = subprocess.run(
+                [sys.executable, str(script), "create", "--worktree-root", str(root), "--operation-id", "acceptance-1"],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(created.returncode, 0, created.stderr)
+            path = Path(json.loads(created.stdout)["path"])
+            self.assertEqual(path, (root / ".local" / "dc-loop" / "tmp" / "acceptance-1").resolve())
+            duplicate = subprocess.run(
+                [sys.executable, str(script), "create", "--worktree-root", str(root), "--operation-id", "acceptance-1"],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertNotEqual(duplicate.returncode, 0)
+            traversal = subprocess.run(
+                [sys.executable, str(script), "path", "--worktree-root", str(root), "--operation-id", "../outside"],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertNotEqual(traversal.returncode, 0)
+
+    def test_operation_cleanup_is_scoped_and_preserves_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            index = root / "docs" / "交付证明" / "HTW-1.md"
+            index.parent.mkdir(parents=True)
+            index.write_text("index", encoding="utf-8")
+            script = SCRIPT_DIR / "operation_workspace.py"
+            create = subprocess.run(
+                [sys.executable, str(script), "create", "--worktree-root", str(root), "--operation-id", "op-1"],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(create.returncode, 0, create.stderr)
+            operation = root / ".local" / "dc-loop" / "tmp" / "op-1"
+            (operation / "raw-output.txt").write_text("temporary", encoding="utf-8")
+            cleaned = subprocess.run(
+                [sys.executable, str(script), "cleanup", "--worktree-root", str(root), "--operation-id", "op-1", "--terminal-status", "SUCCESS"],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(cleaned.returncode, 0, cleaned.stderr)
+            self.assertFalse(operation.exists())
+            self.assertEqual(index.read_text(encoding="utf-8"), "index")
+
+    def test_operation_workspace_rejects_external_tmp_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as outside:
+            root = Path(temporary)
+            target = root / ".local" / "dc-loop"
+            target.mkdir(parents=True)
+            (target / "tmp").symlink_to(outside, target_is_directory=True)
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "operation_workspace.py"), "create", "--worktree-root", str(root), "--operation-id", "escape"],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("越出", result.stderr)
+
+    def test_operation_cleanup_requires_terminal_status(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "operation_workspace.py"), "cleanup", "--worktree-root", tempfile.gettempdir(), "--operation-id", "missing"],
+            check=False, capture_output=True, text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+
+    def test_delivery_index_contains_only_issue_navigation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            req = requirement_event("EVT-HTW-1-REQ-001")
+            spec = specification_event("EVT-HTW-1-SPEC-001")
+            imp = implementation_event("EVT-HTW-1-IMP-001")
+            acc = acceptance_event("EVT-HTW-1-ACC-001")
+            comments = [
+                comment("c-req", "2026-08-26T10:00:00+09:00", req),
+                comment("c-spec", "2026-08-26T11:00:00+09:00", spec),
+                comment("c-imp", "2026-08-26T12:00:00+09:00", imp),
+                comment("c-acc", "2026-08-26T13:00:00+09:00", acc),
+            ]
+            comments_file = root / "comments.json"
+            output_file = root / "docs" / "交付证明" / "HTW-1.md"
+            comments_file.write_text(json.dumps({"comments": comments}, ensure_ascii=False), encoding="utf-8")
+            command = [sys.executable, str(SCRIPT_DIR / "delivery_index.py"), "--issue-key", "HTW-1", "--issue-url", "http://example/issues/1", "--comments-json", str(comments_file), "--output-file", str(output_file), "--coverage", "FULL", "--synced-at", "2026-08-26T14:00:00+00:00"]
+            result = subprocess.run(command, check=False, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            content = output_file.read_text(encoding="utf-8")
+            self.assertIn("## SPEC（1）", content)
+            self.assertIn("## IMPLEMENTATION（1）", content)
+            self.assertIn("## ACCEPTANCE（1）", content)
+            self.assertIn("comment `c-acc`", content)
+            self.assertNotIn("DEEP_CREW_EVENT_START", content)
+            self.assertNotIn("AST-001", content)
+            checked = subprocess.run(command + ["--check"], check=False, capture_output=True, text=True)
+            self.assertEqual(checked.returncode, 0, checked.stderr)
+
+    def test_delivery_index_rejects_incomplete_sync(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            comments_file = root / "comments.json"
+            comments_file.write_text("[]", encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "delivery_index.py"), "--issue-key", "HTW-1", "--issue-url", "http://example/issues/1", "--comments-json", str(comments_file), "--output-file", str(root / "index.md")],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("coverage: FULL", result.stderr)
+
+    def test_preflight_accepts_spec_event_as_matrix_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            plan_copy = Path(temporary) / "plan.md"
+            plan_copy.write_text(
+                (Path("docs/交付证明/REQ-DC-CONTEXT-LOOP-SEMANTIC/实现计划.md").read_text(encoding="utf-8").replace("status: READY", "status: IN_PROGRESS", 1)),
+                encoding="utf-8",
+            )
+            report = Path(temporary) / "preflight.txt"
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "review_implementation.py"), "--phase", "preflight", "--plan-file", str(plan_copy), "--matrix-file", str(Path("docs/交付证明/REQ-DC-CONTEXT-LOOP-SEMANTIC/SPEC-008-草案事件.yaml")), "--report-file", str(report)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("COMPLETION_REVIEW: PASSED", result.stdout)
+
     def test_ready_waits_for_explicit_acceptance_authorization(self) -> None:
         loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("`IMPLEMENTATION READY` 只是交给验收角色的条件，不是验收授权", loop_skill)

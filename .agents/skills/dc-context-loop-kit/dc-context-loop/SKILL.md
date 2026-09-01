@@ -224,8 +224,20 @@ python3 <skill-dir>/scripts/prepare_event.py \
   --event-file <event.yaml> \
   --issue <issue-ref> \
   --comments-json <fresh-comments.json> \
-  --output-dir <temporary-output-dir>
+  --output-dir <operation-workspace>
 ```
+
+`--output-dir` 只能使用本次操作工作区。工作区必须先由目标 IMPLEMENTATION
+事件的 `repository.worktree_root` 派生：
+
+```text
+<repository.worktree_root>/.local/dc-loop/tmp/<operation-id>/
+```
+
+使用 `scripts/operation_workspace.py create --worktree-root <root>` 创建唯一目录，禁止从验收 Agent 当前目录推断根目录，也禁止使用根目录之外的 `/tmp`、用户目录或其他仓库。操作成功、失败、阻塞或中止后都必须调用同一脚本的 `cleanup --terminal-status SUCCESS|FAILED|BLOCKED|INTERRUPTED` 并确认清理结果；清理失败不得宣称动作完成。事件发布后重新 intake 所需的评论缓存也属于该操作目录。
+
+本地交付证明不是阶段副本。完整 intake 且 ACC 结论落地后，使用
+`scripts/delivery_index.py` 刷新 `docs/交付证明/<ISSUE-KEY>.md`；该文件只保存 Issue 导航和同步元数据，不纳入 Git。SPEC/IMP 发布期间不刷新最终索引，索引一致性检查必须比较事件编号、event_id、评论 UUID、分类、计数、最后评论 ID 和覆盖状态。
 
 脚本会生成一份人类可读评论和机器块，并返回 `duplicate`。REQ 使用完整快照；SPEC 使用完整快照或 `base_spec_ref + changes` 增量；IMPLEMENTATION/ACCEPTANCE 使用独立完成事实。脚本只校验和渲染，不读取历史、不合并增量、不自动路由。相同 `event_id` 已存在时跳过重复发布；不同 `IMP-*` 或 `ACC-*` 应保留为新的时间线记录。
 

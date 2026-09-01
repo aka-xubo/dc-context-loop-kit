@@ -45,9 +45,7 @@ def load_yaml(path: Path) -> dict[str, Any]:
 def load_embedded_yaml(path: Path) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8")
     match = re.search(r"```yaml\s*(.*?)\s*```", text, re.DOTALL)
-    if not match:
-        raise ReviewError(f"文件中没有 YAML 机器块：{path}")
-    value = yaml.safe_load(match.group(1))
+    value = yaml.safe_load(match.group(1) if match else text)
     if not isinstance(value, dict):
         raise ReviewError(f"YAML 机器块根对象必须是对象：{path}")
     return value
@@ -100,12 +98,29 @@ def preflight(plan_file: Path, matrix_file: Path | None) -> tuple[bool, list[str
     if matrix_file:
         matrix_doc = load_embedded_yaml(matrix_file)
         matrix = as_dict(matrix_doc.get("acceptance_matrix"))
-        required_ast = {
-            str(as_dict(assertion).get("id"))
-            for check_item in as_list(matrix.get("checks"))
-            if as_dict(check_item).get("required") is True
-            for assertion in as_list(as_dict(check_item).get("assertions"))
-        }
+        if matrix:
+            required_ast = {
+                str(as_dict(assertion).get("id"))
+                for check_item in as_list(matrix.get("checks"))
+                if as_dict(check_item).get("required") is True
+                for assertion in as_list(as_dict(check_item).get("assertions"))
+            }
+        else:
+            # A confirmed SPEC event is also a valid source for the current
+            # matrix when its assertions are represented in specification.*.
+            specification = as_dict(as_dict(matrix_doc.get("event")).get("specification"))
+            required_ast = {
+                str(as_dict(assertion).get("id"))
+                for assertion in as_list(specification.get("assertions"))
+            }
+            if not required_ast:
+                changes = as_dict(specification.get("changes"))
+                added = as_dict(changes.get("added"))
+                required_ast = {
+                    str(as_dict(assertion).get("id"))
+                    for assertion in as_list(added.get("assertions"))
+                }
+            check(bool(required_ast), "当前矩阵包含可核对的 AST")
         check(required_ast <= covered, f"当前矩阵必需 AST 均有切片覆盖（缺失：{', '.join(sorted(required_ast - covered)) or '无'}）")
     else:
         check(False, "覆盖预检必须提供 --matrix-file 以核对当前矩阵必需 AST")

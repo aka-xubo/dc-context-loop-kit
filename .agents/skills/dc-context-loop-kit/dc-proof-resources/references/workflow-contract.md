@@ -31,6 +31,13 @@ docs/交付证明/
 
 固定 YAML 数据块是机器真值源；HTML 和需求清单是只读派生视图。
 
+当前本地交付证明采用 Issue 单一索引：完整 intake 且 ACC 结论落地后，索引保存为
+`docs/交付证明/<ISSUE-KEY>.md`，只记录编号、event_id、评论 UUID、评论地址、计数和同步元数据，不进入 Git，也不复制事件、规格或证据正文。SPEC/IMP 发布期间不刷新最终索引；索引刷新前必须确认 intake `coverage: FULL`，并精确比较事件集合。
+
+所有自测、完成前复核和验收临时材料都必须位于目标 IMPLEMENTATION 事件
+`repository.worktree_root/.local/dc-loop/tmp/<operation-id>/`。操作目录由
+`dc-context-loop/scripts/operation_workspace.py` 创建，不能使用验收 Agent 当前目录或项目根目录之外的系统临时目录。每个终态都要清理并验证；清理失败阻止完成声明，但不删除 Issue 评论、附件或本地索引。
+
 ## 需求处理
 
 收到新信息时判断它属于 REQ、SPEC、IMPLEMENTATION 或 ACCEPTANCE，并发布对应的当前内容或完成事实。只有形成独立业务结果时才新建 REQ。

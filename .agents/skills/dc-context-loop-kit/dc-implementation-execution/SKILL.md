@@ -84,6 +84,12 @@ human_gate:
 
 ## 执行和状态
 
+### 临时操作工作区
+
+实现计划、自测、完成前复核和事件准备产生的脚本副本、矩阵副本、原始输出和缓存，必须位于目标实现事件声明的
+`repository.worktree_root/.local/dc-loop/tmp/<operation-id>/`。实现 Agent 先调用
+`dc-context-loop/scripts/operation_workspace.py create --worktree-root <repository.worktree_root>`，并把所有工具的输出目录指向返回路径；不得使用当前 shell 目录、系统 `/tmp` 或其他仓库。操作进入成功、失败、阻塞或中止终态时，使用 `cleanup --terminal-status SUCCESS|FAILED|BLOCKED|INTERRUPTED` 清理并验证目录不存在；清理失败会阻止 READY 和交付声明。源代码、Issue 评论和最终本地交付证明索引不属于可清理临时材料。
+
 本地计划可以使用 `PLANNED → IN_PROGRESS → READY`，整体无法继续时为 `BLOCKED`；切片可以使用 `PLANNED → IN_PROGRESS → COMPLETED`，单个切片无法继续时为 `BLOCKED`。这些状态只服务本地执行，不发布为 Issue 评论。`COMPLETED` 只表示实现切片完成，不代表验收通过。
 
 每个可通过稳定公开代码接口验证的行为，默认按一个垂直切片执行 `RED → GREEN → REFACTOR`，详细规则见 [../dc-proof-resources/references/tdd-rules.md](../dc-proof-resources/references/tdd-rules.md)。以下情况才允许豁免，并在 `test_strategy.exemptions` 中写清受影响 AST、理由和替代检查：

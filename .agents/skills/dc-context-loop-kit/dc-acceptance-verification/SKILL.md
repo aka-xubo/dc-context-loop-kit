@@ -11,6 +11,10 @@ description: 在实现计划 READY 后，由验收角色执行当前 CHK 的真�
 
 入口要求：目标 REQ、场景和矩阵均为 `CONFIRMED`，实现计划为 `READY`，绑定唯一完整 `git_commit` 和 IMPLEMENTATION 事件提供的 `repository.worktree_root`/`git_toplevel`，并且已收到用户明确的验收指令。开始业务验收前，先依据实现事件的仓库路径和 commit 读取正确实现内容；这一步只做代码定位与版本核对，不替代任何 CHK/AST 验证，也不进行全盘仓库检索。IMPLEMENTATION READY 事件不是自动进入本技能的触发器；“继续”“可以”“来吧”等泛化指令不构成验收授权。验收者不修改生产实现或验收定义；发现定义无法裁决时停止执行，退回 `dc-acceptance-design`。
 
+验收操作的临时根目录只能是目标 IMPLEMENTATION 事件的
+`repository.worktree_root/.local/dc-loop/tmp/<operation-id>/`。验收 Agent 必须使用
+`dc-context-loop/scripts/operation_workspace.py` 创建唯一目录，将验收脚本、测试脚本副本、矩阵副本、原始输出、缓存和临时工作树全部放入其中；不能根据自己的当前目录推断路径，也不能使用其外部的系统临时目录。无论验收成功、失败、阻塞还是中止，都必须在终态调用 `cleanup --terminal-status SUCCESS|FAILED|BLOCKED|INTERRUPTED` 并验证清理完成；清理失败时只能报告清理错误，不能形成完成声明。已发布的 Issue 评论、附件和单一本地交付证明索引不在清理范围内。
+
 每个正式 RUN 同时填写 `check_refs` 和 `assertion_refs`。每个 `PASSED` AST 必须在关联 ART 中保存非空 `expected`、`observed`、`status: PASSED` 和可解析、可定位的 `evidence_locator`。先保存原始命令输出、请求响应或状态查询结果，再填写 ART 摘要；不得以“全部通过”、测试名或截图代替逐 AST 实际观察。
 
 对 `assertion_type: predicate` 的 AST，ART 还必须保存 `evaluation.observations`，键名与矩阵 predicate 的 `fact` 一致。由 validator 重算结果：计算为真只能记 `PASSED`，计算为假只能记 `FAILED`；无法获得事实值则记录 `BLOCKED` 或退回验收设计。`expected`、`observed` 和 `evidence_locator` 仍然必须填写，便于人复核事实来源。
