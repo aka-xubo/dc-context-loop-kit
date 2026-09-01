@@ -1,8 +1,0 @@
-Command: python3 .agents/skills/dc-context-loop-kit/dc-context-loop/scripts/prepare_event.py --event-file /private/tmp/EVT-HTW-1671-IMP-002.yaml --issue HTW-1671 --comments-json /private/tmp/htw1671-comments.json --output-dir /private/tmp/verify-event
-Observed: event_id EVT-HTW-1671-IMP-002；duplicate true；已有同一事件，工具未重复生成发布内容。
-Command: python3 .agents/skills/dc-context-loop-kit/dc-context-loop/scripts/context_loop_test.py -v
-Observed: Ran 11 tests in 0.770s；所有测试均为 ok；最终结果 OK。
-合法事件观察：prepare_event.py 只校验并渲染事件字段；评论包含人类可读摘要和 DEEP_CREW_EVENT YAML 机器块。
-路由解耦观察：created_at 仅做非空校验；next_actions 仅校验/渲染；源码没有根据事件时间、最新评论或 next_actions 选择节点的分支。
-时间线归约观察：rg --files .agents/skills/dc-context-loop-kit | rg 'reduce|reducer|timeline|snapshot' 无输出，未发现独立时间线归约脚本。
-依据：prepare_event.py 第 1-420 行；context_loop_test.py 运行输出；dc-context-loop/SKILL.md 第 40-89 行。

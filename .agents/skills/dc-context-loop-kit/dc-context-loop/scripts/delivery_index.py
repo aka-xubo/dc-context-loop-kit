@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +20,7 @@ EVENT_RE = re.compile(r"<!-- DEEP_CREW_EVENT_START -->\s*```yaml\s*(.*?)\s*```\s
 ID_RE = re.compile(r"^(REQ|SPEC|IMPLEMENTATION|ACCEPTANCE)$")
 SUBJECT_RE = re.compile(r"^(SPEC|IMP|ACC)-[A-Za-z0-9_-]+$")
 EVENT_ID_HINT_RE = re.compile(r"(?:^|[-_])(SPEC|IMP|ACC)-[A-Za-z0-9_-]+(?:$|[-_])")
+ISSUE_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 class IndexError(ValueError):
@@ -134,10 +137,70 @@ def render_index(issue_key: str, issue_url: str, records: list[dict[str, str]], 
     return "\n".join(lines)
 
 
+def _absolute_path(root: Path, path: Path) -> Path:
+    expanded = path.expanduser()
+    if not expanded.is_absolute():
+        expanded = root / expanded
+    return Path(os.path.abspath(expanded))
+
+
+def _legacy_paths(worktree_root: Path, paths: list[Path], output_file: Path) -> list[tuple[Path, Path]]:
+    root = worktree_root.expanduser().resolve()
+    proof_root = (root / "docs" / "交付证明").resolve()
+    output = _absolute_path(root, output_file)
+    result: list[tuple[Path, Path]] = []
+    for raw in paths:
+        source = _absolute_path(root, raw)
+        if not source.is_relative_to(proof_root):
+            raise IndexError(f"旧交付路径必须位于 docs/交付证明 下: {raw}")
+        if source == proof_root:
+            raise IndexError("不能把 docs/交付证明 根目录作为旧交付路径")
+        relative = source.relative_to(proof_root)
+        cursor = proof_root
+        for part in relative.parts:
+            cursor = cursor / part
+            if cursor.is_symlink():
+                raise IndexError(f"拒绝归档符号链接或其后代: {source}")
+        if source == output or output.is_relative_to(source):
+            raise IndexError(f"旧交付路径不能包含当前索引: {source}")
+        for existing, _ in result:
+            if source == existing or source.is_relative_to(existing) or existing.is_relative_to(source):
+                raise IndexError(f"旧交付路径不能重复或相互嵌套: {source}")
+        result.append((source, relative))
+    return result
+
+
+def archive_legacy_paths(worktree_root: Path, issue_key: str, paths: list[Path], output_file: Path, *, check: bool) -> None:
+    if not ISSUE_KEY_RE.fullmatch(issue_key) or issue_key in {".", ".."}:
+        raise IndexError(f"Issue key 不能用于归档目录: {issue_key}")
+    pairs = _legacy_paths(worktree_root, paths, output_file)
+    archive_base = (worktree_root.expanduser().resolve() / ".local" / "dc-loop" / "archive").resolve()
+    archive_root = archive_base / issue_key
+    moves: list[tuple[Path, Path]] = []
+    for source, relative in pairs:
+        if check:
+            if source.exists():
+                raise IndexError(f"旧交付路径仍存在: {source}")
+            continue
+        if not source.exists():
+            continue
+        destination = archive_root / relative
+        if destination.exists():
+            raise IndexError(f"归档目标已存在，拒绝覆盖: {destination}")
+        moves.append((source, destination))
+    for source, destination in moves:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(source), str(destination))
+
+
 def run(args: argparse.Namespace) -> int:
     if args.coverage != "FULL" and not args.check:
         raise IndexError("只有 coverage: FULL 的完整 intake 才能同步交付证明索引")
     comments = load_comments(args.comments_json)
+    if args.legacy_path and args.worktree_root is None:
+        raise IndexError("指定 --legacy-path 时必须提供 --worktree-root")
+    if args.legacy_path:
+        archive_legacy_paths(args.worktree_root, args.issue_key, args.legacy_path, args.output_file, check=args.check)
     records = collect_events(comments, args.issue_url)
     last_comment = max(comments, key=lambda item: str(item.get("created_at") or ""), default={})
     last_comment_id = args.last_comment_id or str(last_comment.get("id") or last_comment.get("uuid") or "")
@@ -165,6 +228,8 @@ def main() -> int:
     parser.add_argument("--last-comment-id")
     parser.add_argument("--synced-at")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--worktree-root", type=Path)
+    parser.add_argument("--legacy-path", action="append", type=Path, default=[])
     try:
         return run(parser.parse_args())
     except (IndexError, OSError) as error:

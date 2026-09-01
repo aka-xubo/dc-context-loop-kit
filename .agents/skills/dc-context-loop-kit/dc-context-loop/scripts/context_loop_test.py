@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -11,6 +12,21 @@ from pathlib import Path
 import yaml
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+
+
+def require_operation_temp_environment() -> Path:
+    raw_workspace = os.environ.get("DC_LOOP_OPERATION_WORKSPACE")
+    if not raw_workspace:
+        raise RuntimeError("必须通过 operation_workspace.py exec 运行测试")
+    workspace = Path(raw_workspace).expanduser().resolve()
+    if not workspace.is_dir() or workspace.parent.name != "tmp" or workspace.parent.parent.name != "dc-loop" or workspace.parent.parent.parent.name != ".local":
+        raise RuntimeError(f"DC_LOOP_OPERATION_WORKSPACE 不是项目内操作目录: {workspace}")
+    for key in ("TMPDIR", "TMP", "TEMP", "PYTHONPYCACHEPREFIX"):
+        value = os.environ.get(key)
+        if not value or not Path(value).expanduser().resolve().is_relative_to(workspace):
+            raise RuntimeError(f"{key} 必须位于操作目录内")
+    tempfile.tempdir = os.environ["TMPDIR"]
+    return workspace
 
 
 def requirement_event(event_id: str, *, requirement_id: str = "REQ-001", statement: str = "用户能够理解登录失败原因") -> dict:
@@ -262,6 +278,30 @@ def implementation_plan_document() -> dict:
         },
     }
 class ContextLoopTest(unittest.TestCase):
+    def test_operation_exec_injects_project_local_temp_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            script = SCRIPT_DIR / "operation_workspace.py"
+            created = subprocess.run(
+                [sys.executable, str(script), "create", "--worktree-root", str(root), "--operation-id", "exec-1"],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(created.returncode, 0, created.stderr)
+            result = subprocess.run(
+                [
+                    sys.executable, str(script), "exec", "--worktree-root", str(root),
+                    "--operation-id", "exec-1", "--", sys.executable, "-c",
+                    "import json,os,tempfile; print(json.dumps({'tmp': tempfile.gettempdir(), 'workspace': os.environ.get('DC_LOOP_OPERATION_WORKSPACE'), 'pycache': os.environ.get('PYTHONPYCACHEPREFIX')}))",
+                ],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            environment = json.loads(result.stdout)
+            operation = (root / ".local" / "dc-loop" / "tmp" / "exec-1").resolve()
+            self.assertTrue(Path(environment["tmp"]).is_relative_to(operation))
+            self.assertEqual(Path(environment["workspace"]), operation)
+            self.assertTrue(Path(environment["pycache"]).is_relative_to(operation))
+
     def test_operation_workspace_is_project_local_and_unique(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -355,6 +395,98 @@ class ContextLoopTest(unittest.TestCase):
             checked = subprocess.run(command + ["--check"], check=False, capture_output=True, text=True)
             self.assertEqual(checked.returncode, 0, checked.stderr)
 
+    def test_delivery_index_archives_explicit_legacy_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            proof = root / "docs" / "交付证明"
+            legacy_req = proof / "REQ-OLD"
+            legacy_req.mkdir(parents=True)
+            (legacy_req / "验收报告.md").write_text("legacy", encoding="utf-8")
+            legacy_catalog = proof / "需求清单.md"
+            legacy_catalog.write_text("legacy catalog", encoding="utf-8")
+            comments_file = root / "comments.json"
+            comments_file.write_text(json.dumps({"comments": [comment("c1", "2026-08-26T10:00:00+09:00", requirement_event("EVT-HTW-1-REQ-001"))]}, ensure_ascii=False), encoding="utf-8")
+            output = proof / "HTW-1.md"
+            command = [
+                sys.executable, str(SCRIPT_DIR / "delivery_index.py"),
+                "--issue-key", "HTW-1", "--issue-url", "http://example/issues/1",
+                "--comments-json", str(comments_file), "--output-file", str(output),
+                "--coverage", "FULL", "--synced-at", "2026-08-26T14:00:00+00:00",
+                "--worktree-root", str(root), "--legacy-path", str(legacy_req),
+                "--legacy-path", str(legacy_catalog),
+            ]
+            result = subprocess.run(command, check=False, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual([path.name for path in proof.iterdir()], ["HTW-1.md"])
+            archive = root / ".local" / "dc-loop" / "archive" / "HTW-1"
+            self.assertEqual((archive / "REQ-OLD" / "验收报告.md").read_text(encoding="utf-8"), "legacy")
+            self.assertEqual((archive / "需求清单.md").read_text(encoding="utf-8"), "legacy catalog")
+
+    def test_delivery_index_check_rejects_remaining_legacy_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            proof = root / "docs" / "交付证明"
+            proof.mkdir(parents=True)
+            legacy = proof / "REQ-OLD"
+            legacy.mkdir()
+            comments_file = root / "comments.json"
+            document = requirement_event("EVT-HTW-1-REQ-001")
+            comments_file.write_text(json.dumps({"comments": [comment("c1", "2026-08-26T10:00:00+09:00", document)]}, ensure_ascii=False), encoding="utf-8")
+            output = proof / "HTW-1.md"
+            base = [sys.executable, str(SCRIPT_DIR / "delivery_index.py"), "--issue-key", "HTW-1", "--issue-url", "http://example/issues/1", "--comments-json", str(comments_file), "--output-file", str(output), "--coverage", "FULL", "--synced-at", "2026-08-26T14:00:00+00:00"]
+            self.assertEqual(subprocess.run(base, check=False).returncode, 0)
+            checked = subprocess.run(base + ["--check", "--worktree-root", str(root), "--legacy-path", str(legacy)], check=False, capture_output=True, text=True)
+            self.assertNotEqual(checked.returncode, 0)
+            self.assertIn("旧交付路径仍存在", checked.stderr)
+
+    def test_delivery_index_rejects_symlink_and_nested_legacy_paths_before_moving(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            proof = root / "docs" / "交付证明"
+            legacy = proof / "REQ-OLD"
+            nested = legacy / "artifacts"
+            nested.mkdir(parents=True)
+            link = proof / "REQ-LINK"
+            link.symlink_to(legacy, target_is_directory=True)
+            comments_file = root / "comments.json"
+            comments_file.write_text(json.dumps({"comments": [comment("c1", "2026-08-26T10:00:00+09:00", requirement_event("EVT-HTW-1-REQ-001"))]}, ensure_ascii=False), encoding="utf-8")
+            base = [
+                sys.executable, str(SCRIPT_DIR / "delivery_index.py"),
+                "--issue-key", "HTW-1", "--issue-url", "http://example/issues/1",
+                "--comments-json", str(comments_file), "--output-file", str(proof / "HTW-1.md"),
+                "--coverage", "FULL", "--worktree-root", str(root),
+            ]
+            symlink_result = subprocess.run(base + ["--legacy-path", str(link)], check=False, capture_output=True, text=True)
+            self.assertNotEqual(symlink_result.returncode, 0)
+            self.assertIn("符号链接", symlink_result.stderr)
+            nested_result = subprocess.run(base + ["--legacy-path", str(nested), "--legacy-path", str(legacy)], check=False, capture_output=True, text=True)
+            self.assertNotEqual(nested_result.returncode, 0)
+            self.assertIn("相互嵌套", nested_result.stderr)
+            self.assertTrue(legacy.is_dir())
+            self.assertTrue(link.is_symlink())
+
+    def test_delivery_index_rejects_archiving_current_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            proof = root / "docs" / "交付证明"
+            proof.mkdir(parents=True)
+            output = proof / "HTW-1.md"
+            output.write_text("existing", encoding="utf-8")
+            comments_file = root / "comments.json"
+            comments_file.write_text(json.dumps({"comments": [comment("c1", "2026-08-26T10:00:00+09:00", requirement_event("EVT-HTW-1-REQ-001"))]}, ensure_ascii=False), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable, str(SCRIPT_DIR / "delivery_index.py"),
+                    "--issue-key", "HTW-1", "--issue-url", "http://example/issues/1",
+                    "--comments-json", str(comments_file), "--output-file", str(output),
+                    "--coverage", "FULL", "--worktree-root", str(root), "--legacy-path", str(output),
+                ],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("当前索引", result.stderr)
+            self.assertEqual(output.read_text(encoding="utf-8"), "existing")
+
     def test_delivery_index_rejects_incomplete_sync(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -370,13 +502,15 @@ class ContextLoopTest(unittest.TestCase):
     def test_preflight_accepts_spec_event_as_matrix_source(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             plan_copy = Path(temporary) / "plan.md"
-            plan_copy.write_text(
-                (Path("docs/交付证明/REQ-DC-CONTEXT-LOOP-SEMANTIC/实现计划.md").read_text(encoding="utf-8").replace("status: READY", "status: IN_PROGRESS", 1)),
-                encoding="utf-8",
-            )
+            plan_document = implementation_plan_document()
+            plan_document["implementation_plan"]["status"] = "PLANNED"
+            plan_document["implementation_plan"]["slices"][0]["assertion_refs"] = ["AST-002"]
+            plan_copy.write_text(yaml.safe_dump(plan_document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            matrix_file = Path(temporary) / "spec-event.yaml"
+            matrix_file.write_text(yaml.safe_dump(incremental_specification_event(), allow_unicode=True, sort_keys=False), encoding="utf-8")
             report = Path(temporary) / "preflight.txt"
             result = subprocess.run(
-                [sys.executable, str(SCRIPT_DIR / "review_implementation.py"), "--phase", "preflight", "--plan-file", str(plan_copy), "--matrix-file", str(Path("docs/交付证明/REQ-DC-CONTEXT-LOOP-SEMANTIC/SPEC-008-草案事件.yaml")), "--report-file", str(report)],
+                [sys.executable, str(SCRIPT_DIR / "review_implementation.py"), "--phase", "preflight", "--plan-file", str(plan_copy), "--matrix-file", str(matrix_file), "--report-file", str(report)],
                 check=False, capture_output=True, text=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -911,4 +1045,9 @@ class ContextLoopTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    try:
+        require_operation_temp_environment()
+    except RuntimeError as error:
+        print(f"受控测试环境错误: {error}", file=sys.stderr)
+        raise SystemExit(2)
     unittest.main()

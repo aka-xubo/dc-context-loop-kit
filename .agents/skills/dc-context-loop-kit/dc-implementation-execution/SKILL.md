@@ -88,7 +88,7 @@ human_gate:
 
 实现计划、自测、完成前复核和事件准备产生的脚本副本、矩阵副本、原始输出和缓存，必须位于目标实现事件声明的
 `repository.worktree_root/.local/dc-loop/tmp/<operation-id>/`。实现 Agent 先调用
-`dc-context-loop/scripts/operation_workspace.py create --worktree-root <repository.worktree_root>`，并把所有工具的输出目录指向返回路径；不得使用当前 shell 目录、系统 `/tmp` 或其他仓库。操作进入成功、失败、阻塞或中止终态时，使用 `cleanup --terminal-status SUCCESS|FAILED|BLOCKED|INTERRUPTED` 清理并验证目录不存在；清理失败会阻止 READY 和交付声明。源代码、Issue 评论和最终本地交付证明索引不属于可清理临时材料。
+`dc-context-loop/scripts/operation_workspace.py create --worktree-root <repository.worktree_root>`，并把所有工具的输出目录指向返回路径；所有会生成临时文件或缓存的自测、复核和事件准备命令都通过 `operation_workspace.py exec --worktree-root <root> --operation-id <id> -- <command>` 执行，不得直接运行后依赖系统默认临时目录。操作进入成功、失败、阻塞或中止终态时，使用 `cleanup --terminal-status SUCCESS|FAILED|BLOCKED|INTERRUPTED` 清理并验证目录不存在；清理失败会阻止 READY 和交付声明。源代码、Issue 评论和最终本地交付证明索引不属于可清理临时材料。
 
 本地计划可以使用 `PLANNED → IN_PROGRESS → READY`，整体无法继续时为 `BLOCKED`；切片可以使用 `PLANNED → IN_PROGRESS → COMPLETED`，单个切片无法继续时为 `BLOCKED`。这些状态只服务本地执行，不发布为 Issue 评论。`COMPLETED` 只表示实现切片完成，不代表验收通过。
 
@@ -131,6 +131,7 @@ RED/GREEN/REFACTOR 只记录实现过程，不生成正式 RUN/ART。
 - 所有切片、交付面、readiness、blocker 和 open question 满足 READY 条件；
 - 开发检查有逐条命令和可复核结果，不能只写“全部通过”；
 - 目标仓库、Git 根目录、commit 和 tracked 工作区状态一致。
+- 在该 operation workspace 下创建只包含目标 commit 的临时工作树，并通过受控 `exec` 重跑开发检查，证明测试不依赖未跟踪文件或原工作区残留。
 
 程序复核必须输出可定位报告；任一硬检查失败时不得进入语义复核或发布 `READY`。程序不得从“文件存在”推断业务行为已经实现。
 

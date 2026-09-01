@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
+import subprocess
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -86,6 +88,24 @@ def cleanup_operation_workspace(worktree_root: str | Path, operation_id: str) ->
     return not remaining
 
 
+def exec_in_operation_workspace(worktree_root: str | Path, operation_id: str, command: list[str]) -> int:
+    if not command:
+        raise WorkspaceError("exec 必须提供要执行的命令")
+    operation = operation_path(worktree_root, operation_id)
+    if not operation.is_dir() or operation.is_symlink():
+        raise WorkspaceError(f"操作目录不存在或非法: {operation}")
+    temp_root = operation / "tmp"
+    cache_root = operation / "pycache"
+    temp_root.mkdir(mode=0o700, exist_ok=True)
+    cache_root.mkdir(mode=0o700, exist_ok=True)
+    environment = os.environ.copy()
+    for key in ("TMPDIR", "TMP", "TEMP"):
+        environment[key] = str(temp_root)
+    environment["PYTHONPYCACHEPREFIX"] = str(cache_root)
+    environment["DC_LOOP_OPERATION_WORKSPACE"] = str(operation)
+    return subprocess.run(command, cwd=str(_root(worktree_root)), env=environment, check=False).returncode
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -99,6 +119,10 @@ def main() -> int:
     path_parser = subparsers.add_parser("path", help="输出操作目录路径但不创建")
     path_parser.add_argument("--worktree-root", required=True, type=Path)
     path_parser.add_argument("--operation-id", required=True)
+    execute = subparsers.add_parser("exec", help="在操作目录环境中执行命令")
+    execute.add_argument("--worktree-root", required=True, type=Path)
+    execute.add_argument("--operation-id", required=True)
+    execute.add_argument("command_args", nargs=argparse.REMAINDER)
     try:
         if args := parser.parse_args():
             if args.command == "create":
@@ -106,6 +130,10 @@ def main() -> int:
                 print(json.dumps({"operation_id": path.name, "path": str(path)}, ensure_ascii=False))
             elif args.command == "path":
                 print(json.dumps({"operation_id": validate_operation_id(args.operation_id), "path": str(operation_path(args.worktree_root, args.operation_id))}, ensure_ascii=False))
+            elif args.command == "exec":
+                command = args.command_args[1:] if args.command_args and args.command_args[0] == "--" else args.command_args
+                raise_code = exec_in_operation_workspace(args.worktree_root, args.operation_id, command)
+                return raise_code
             else:
                 empty = cleanup_operation_workspace(args.worktree_root, args.operation_id)
                 print(json.dumps({"operation_id": args.operation_id, "terminal_status": args.terminal_status, "cleaned": True, "tmp_root_empty": empty}, ensure_ascii=False))
