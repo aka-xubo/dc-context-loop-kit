@@ -623,6 +623,7 @@ class ContextLoopTest(unittest.TestCase):
         self.assertIn("最多调用一个节点技能", loop_skill)
         self.assertIn("最多发布一个结构化事件", loop_skill)
         self.assertIn("下一轮重新 intake", loop_skill)
+        self.assertIn("本轮输出只报告事实、结果和下一轮入口", loop_skill)
         self.assertIn("intake 覆盖状态为 `FULL`", loop_skill)
         self.assertIn("节点技能不得自行调用 `dc-issue-intake`", loop_skill)
         self.assertIn("本技能不自行调用 `dc-issue-intake`", grilling_skill)

@@ -82,7 +82,7 @@
     {
       "id": 14,
       "prompt": "本轮 SPEC 事件发布接口返回 2xx，且当前上下文已经足够进入实现。",
-      "expected_output": "报告 SPEC 发布成功并结束本轮；不在同一轮调用实现技能。下一轮必须重新完整读取 Issue，确认 SPEC 在线存在后再判断是否进入 IMPLEMENTATION。",
+      "expected_output": "报告 SPEC 发布成功并结束本轮；不在同一轮调用实现技能。下一轮必须重新完整读取 Issue，确认 SPEC 在线存在后再判断是否进入 IMPLEMENTATION；本轮输出只报告事实和下一轮入口。",
       "files": []
     }
   ]
