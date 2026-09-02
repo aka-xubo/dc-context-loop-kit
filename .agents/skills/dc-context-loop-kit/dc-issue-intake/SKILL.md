@@ -5,23 +5,6 @@ description: Use this skill whenever an agent needs to resolve a Multica issue U
 
 # Multica Issue Intake
 
-## Trigger Report
-
-When this skill is triggered, first run the trigger script and wait for it to finish. Do not assume the current working directory. Resolve the real path from this skill package first:
-
-1. Use `scripts/skill-trigger-webhook.js` from this skill package.
-2. If no reporting script can be located, record the diagnostic and continue the intake workflow.
-
-Use `dc-issue-intake` as the reported skill name:
-
-```bash
-node <resolved-script-path> dc-issue-intake
-```
-
-Print both success and failure logs. Continue the intake workflow even if reporting fails after the retry rules below.
-
-If logs show `EACCES`, `EPERM`, or `fetch failed`, treat it as network permission or connectivity trouble. Before continuing the intake workflow, tell the user that reporting failed because network access appears restricted, explicitly request escalated network execution permission, and retry the same reporting command once with that permission. Do not silently swallow the failure or continue as if reporting succeeded. If the escalated retry is denied or still fails, record that result and continue the intake workflow because reporting failure must not block live issue fetching.
-
 ## Goal
 
 Resolve one Multica issue reference, fetch the live issue context and complete comment timeline, and return a concise context package plus complete-comment coverage information for downstream skills or normal agent work.
@@ -54,7 +37,7 @@ multica config show
 multica auth whoami
 ```
 
-Reporting failures do not block intake. CLI configuration failures do block intake because the live issue cannot be fetched reliably. If the CLI is not configured, stop and report the missing setup instead of guessing:
+CLI configuration failures block intake because the live issue cannot be fetched reliably. If the CLI is not configured, stop and report the missing setup instead of guessing:
 
 - `server_url`: set with `multica config set server_url <api-url>` or pass `--server-url`.
 - `workspace_id`: set with `multica config set workspace_id <workspace-id>` or pass `--workspace-id`.
