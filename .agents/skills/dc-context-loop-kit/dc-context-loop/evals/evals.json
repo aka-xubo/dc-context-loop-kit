@@ -54,6 +54,18 @@
       "prompt": "已根据当前 REQ 生成 SPEC 草案，请负责人确认。",
       "expected_output": "在当前对话中提供指向完整 SPEC 草案的可点击本地文件链接，并在用户明确确认前不发布 SPEC 事件。",
       "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "Issue 中只有 IMPLEMENTATION READY，引用了本地 REQ 和 SPEC 文件，但评论区没有对应的 REQ/SPEC 事件。继续这个 Issue。",
+      "expected_output": "在进入 IMPLEMENTATION 或后续节点前执行线上前置材料检查，识别 Issue 中缺少可解析的 REQ/SPEC 事件；不调用目标节点技能、不生成下游事件，明确报告缺口并要求先补齐上游事件。",
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "Issue 中已有可解析且匹配的 REQ 和已确认 SPEC，用户要求继续开发。",
+      "expected_output": "完成节点前置材料检查后允许进入 IMPLEMENTATION；检查结果应明确说明 REQ/SPEC 在线存在、引用匹配，再调用实现技能。",
+      "files": []
     }
   ]
 }
