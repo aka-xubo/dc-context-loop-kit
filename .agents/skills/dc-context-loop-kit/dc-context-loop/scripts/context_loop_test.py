@@ -613,6 +613,14 @@ class ContextLoopTest(unittest.TestCase):
         self.assertIn("确认前必须给出可点击的草案文件链接", design_skill)
         self.assertIn("确认前不得发布对应 REQ/SPEC 事件", loop_skill)
 
+    def test_acceptance_design_uses_sequential_scn_ids(self) -> None:
+        design_skill = (SCRIPT_DIR.parent.parent / "dc-acceptance-design" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("未占用的三位序号", design_skill)
+        self.assertIn("`SCN-001`、`SCN-002`、`SCN-003`", design_skill)
+        self.assertIn("不得拼接需求名称、草稿状态、标题或其他语义", design_skill)
+        self.assertIn("复用同一个 SCN ID", design_skill)
+        self.assertIn("更新场景沿用已有 ID", design_skill)
+
     def test_issue_intake_is_loop_owned_and_each_round_refreshes_context(self) -> None:
         loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
         grilling_skill = (SCRIPT_DIR.parent.parent / "dc-grilling" / "SKILL.md").read_text(encoding="utf-8")
