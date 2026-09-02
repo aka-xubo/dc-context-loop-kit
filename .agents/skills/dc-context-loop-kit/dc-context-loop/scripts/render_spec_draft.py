@@ -129,19 +129,16 @@ def load_spec(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
 
 
 def render(event: dict[str, Any], specification: dict[str, Any], effective: dict[str, Any], base_ref: str | None) -> str:
-    current = specification
-    incremental = "changes" in current
-    title = f"{event['subject_id']} SPEC 草案"
-    sections = [f"[DP:SPEC] {title}", "", "## 人工审查说明", "", "SCN、CHK、AST 表格和 YAML 机器块由同一结构化事件生成。表格用于人工确认，YAML 用于机器校验和后续引用。"]
-    if incremental:
-        sections.extend(["", "## 基础 SPEC", "", str(base_ref), "", "## 本次增量"])
-        changes = current["changes"]
-        for operation, key in (("新增", "added"), ("修改", "modified")):
-            sections.extend(["", f"### {operation}：SCN 表", "", scenario_table(changes[key]["scenarios"]), "", f"### {operation}：CHK 表", "", check_table(changes[key]["checks"]), "", f"### {operation}：AST 表", "", assertion_table(changes[key]["assertions"])])
-        sections.extend(["", "### 删除", "", f"- SCN：{event_tool.display(changes['removed']['scenarios'])}", f"- CHK：{event_tool.display(changes['removed']['checks'])}", f"- AST：{event_tool.display(changes['removed']['assertions'])}"])
-    sections.extend(["", "## 合并后的当前有效规格", "", f"本规格共 {len(effective['scenarios'])} 个独立验收场景。", "", scenario_details(effective["scenarios"], heading="逐场景审查"), "", render_object_tables(effective, title="当前有效")])
-    sections.extend(["", "## 未决事项", "", event_tool.list_text(current.get("open_questions", [])), "", event_tool.render_machine_block(event)])
-    return "\n".join(sections) + "\n"
+    """Render the draft with the exact production SPEC comment renderer.
+
+    ``effective`` and ``base_ref`` are still computed by ``main`` so an
+    incremental draft is validated against its base snapshot before it is
+    shown.  The draft itself must not have a second, drifting presentation
+    template: the same event data must produce the same human-readable
+    comment that will be published by ``prepare_event.py``.
+    """
+    del specification, effective, base_ref
+    return event_tool.render(event)
 
 
 def main() -> int:

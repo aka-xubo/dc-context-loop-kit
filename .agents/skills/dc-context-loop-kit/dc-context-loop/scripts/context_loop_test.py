@@ -799,6 +799,32 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("YAML 附件：`SPEC-001-事件.yaml`", content)
             self.assertIn("| SCN | 标题 | 业务结果 | Given | When | Then | 交付面 |", content)
 
+    def test_spec_draft_renderer_matches_prepare_event_comment(self) -> None:
+        draft_document = specification_event("EVT-SPEC-DRAFT-CONSISTENCY")
+        formal_document = specification_event("EVT-SPEC-FORMAL-CONSISTENCY")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            draft_file = root / "draft-event.yaml"
+            formal_file = root / "formal-event.yaml"
+            draft_output = root / "draft.md"
+            formal_dir = root / "formal"
+            draft_file.write_text(yaml.safe_dump(draft_document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            formal_file.write_text(yaml.safe_dump(formal_document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+            draft_result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "render_spec_draft.py"), "--event-file", str(draft_file), "--output-file", str(draft_output)],
+                check=False, capture_output=True, text=True,
+            )
+            formal_result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(formal_file), "--issue", "HTW-1", "--output-dir", str(formal_dir)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(draft_result.returncode, 0, draft_result.stderr)
+            self.assertEqual(formal_result.returncode, 0, formal_result.stderr)
+            draft = draft_output.read_text(encoding="utf-8").replace("EVT-SPEC-DRAFT-CONSISTENCY", "EVT-SPEC-CONSISTENCY")
+            formal = (formal_dir / "EVT-SPEC-FORMAL-CONSISTENCY.md").read_text(encoding="utf-8").replace("EVT-SPEC-FORMAL-CONSISTENCY", "EVT-SPEC-CONSISTENCY")
+            self.assertEqual(draft, formal)
+
     def test_incremental_spec_validates_and_renders_changes(self) -> None:
         document = incremental_specification_event()
         with tempfile.TemporaryDirectory() as temporary:
@@ -840,16 +866,13 @@ class ContextLoopTest(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             content = output_file.read_text(encoding="utf-8")
-            self.assertIn("当前有效规格", content)
-            self.assertIn("SCN-001", content)
+            self.assertIn("SPEC-002 验收规格增量", content)
             self.assertIn("SCN-002", content)
-            self.assertIn("CHK-001", content)
+            self.assertIn("CHK-002", content)
             self.assertIn("AST-002", content)
             self.assertNotIn("DEEP_CREW_EVENT_START", content)
             self.assertIn("YAML 附件：`SPEC-002-事件.yaml`", content)
-            self.assertIn("2 个独立场景", content)
-            self.assertIn("#### `SCN-001`", content)
-            self.assertIn("#### `SCN-002`", content)
+            self.assertNotIn("SCN-001", content)
 
     def test_spec_requires_spec_subject_id(self) -> None:
         document = specification_event("EVT-SPEC-MISSING-ID")
