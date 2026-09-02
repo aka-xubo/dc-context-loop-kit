@@ -58,7 +58,9 @@ REQ DRAFT → CONFIRMED → 覆盖预检 → 编码与自测 → 完成前复核
 
 实现计划只有在自测前覆盖预检、自测后程序化完成复核和 Agent 语义完成复核均通过后才能 READY。随后 `dc-implementation-execution` 发布一个新的 `IMP-*` 完成交付事实并将控制权交回 `dc-context-loop`。总协调器检查定义、commit 和门禁，再等待用户明确的验收指令；只有获得授权，才调用 `dc-acceptance-verification`。不能把 READY 自动解释为验收通过，也不能在没有授权时连续发布验收事件。
 
-场景和矩阵作为一份完整 SPEC 一起生成，并在一次人工确认后同时进入 `CONFIRMED`；确认前不可进入实现或验证。`READY` 只代表实现完成，不代表已验收。
+场景和矩阵作为一份完整 SPEC 一起生成，并在一次人工确认后同时进入 `CONFIRMED`；确认前不可进入实现或验证。SPEC 事件 YAML 先通过 Schema 校验，再由 `render_spec_draft.py` 生成单独、完整的 SPEC 草案 Markdown；草案、场景文件、矩阵文件和正式事件必须使用同一份 SPEC 数据，确认前标准文件保持 `DRAFT`。`READY` 只代表实现完成，不代表已验收。
+
+Issue intake 按关键动作触发，而不是每轮固定触发：首次处理、REQ/SPEC/实现方案设计前、正式验收前和用户显式刷新时各自独立完整读取；验收失败后重新进入对应设计或实现方案动作时再次读取。普通交互、节点内部澄清和事件发布前校验复用当前上下文；发布前只做内容展示、引用、Schema、附件、重复 ID 和 Git 校验，发布后不自动重读 Issue。
 
 ## RUN、ART 与裁决
 

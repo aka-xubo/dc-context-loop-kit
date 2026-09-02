@@ -11,7 +11,7 @@ description: 为一个已确认 REQ 设计包含验收场景、验证责任和�
 CONFIRMED REQ → 完整 SPEC（场景 + 矩阵）DRAFT → 一次人工确认 → 完整 SPEC CONFIRMED
 ```
 
-开始前完整读取 workflow contract、glossary、两个 Schema 和对应模板。
+开始前复用 `dc-context-loop` 在进入 SPEC 设计前完成的独立完整 intake，并完整读取 workflow contract、glossary、两个 Schema 和对应模板；本技能不得自行调用 `dc-issue-intake`。
 
 ## 场景阶段
 
@@ -31,7 +31,7 @@ docs/交付证明/<REQ-ID>/验收场景.md
 - 无法从来源推出的规则进入 `open_questions`。
 - 首次建立规格时生成完整场景集合；后续调整默认相对最新已确认 SPEC 生成增量，只记录新增、修改、删除对象。只有需要重建基线或增量无法可靠表达时才生成新的完整快照；Issue 评论时间线保存每次发布。
 
-场景和矩阵必须作为同一份 SPEC 一起生成。首次建立或重建基线时是完整 SPEC；后续调整时是包含 `base_spec_ref` 和 `changes` 的增量 SPEC。用户明确确认 SPEC 后，同时将场景文件和矩阵文件置为 `CONFIRMED`；确认事实由 Issue 中的 SPEC 事件保存，本地文件不要求复制确认人或确认时间。不得先单独确认场景再单独确认矩阵，也不得自行确认。
+场景和矩阵必须作为同一份 SPEC 一起生成。首次建立或重建基线时是完整 SPEC；后续调整时是包含 `base_spec_ref` 和 `changes` 的增量 SPEC。SPEC 事件 YAML 必须先通过事件 Schema 校验，再由 `dc-context-loop/scripts/render_spec_draft.py` 渲染出一份完整、可点击的 SPEC 草案 Markdown；草案、标准场景文件、标准矩阵文件和待发布事件必须来自同一份 SPEC 数据，禁止手工拼接第二份内容。用户明确确认 SPEC 后，同时将场景文件和矩阵文件置为 `CONFIRMED`；确认事实由 Issue 中的 SPEC 事件保存，本地文件不要求复制确认人或确认时间。不得先单独确认场景再单独确认矩阵，也不得自行确认。
 
 ## 矩阵内容
 
@@ -98,6 +98,8 @@ CHK 可用 `evidence_requirements.required_artifact_types` 声明证明所需的
 - 测试文件、命令、环境或实现路径调整：在当前定义下执行本次验收并记录 RUN。
 
 用户明确确认当前 SPEC（完整快照或增量）后，同时为场景和矩阵写入 `CONFIRMED`；确认前必须给出可点击的草案文件链接，确认事件保存在 Issue，不要求本地文档填写确认人或确认时间。
+
+SPEC 草案交付门禁：草案必须包含完整 SCN、CHK、AST、引用关系、未决事项和机器事件附件引用；其内容由经过 Schema 校验的 SPEC 事件 YAML 通过 `render_spec_draft.py` 生成。确认前标准 `验收场景.md` 和 `验收矩阵.md` 保持 `DRAFT`，不得进入实现或正式验收；确认后再同步为 `CONFIRMED`。
 
 ## 输出
 

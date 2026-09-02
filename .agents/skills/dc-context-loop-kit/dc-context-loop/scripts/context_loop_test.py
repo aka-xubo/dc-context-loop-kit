@@ -613,6 +613,15 @@ class ContextLoopTest(unittest.TestCase):
         self.assertIn("确认前必须给出可点击的草案文件链接", design_skill)
         self.assertIn("确认前不得发布对应 REQ/SPEC 事件", loop_skill)
 
+    def test_spec_draft_is_single_schema_validated_source(self) -> None:
+        design_skill = (SCRIPT_DIR.parent.parent / "dc-acceptance-design" / "SKILL.md").read_text(encoding="utf-8")
+        workflow_contract = (SCRIPT_DIR.parent.parent / "dc-proof-resources" / "references" / "workflow-contract.md").read_text(encoding="utf-8")
+        self.assertIn("SPEC 事件 YAML 必须先通过事件 Schema 校验", design_skill)
+        self.assertIn("render_spec_draft.py", design_skill)
+        self.assertIn("禁止手工拼接第二份内容", design_skill)
+        self.assertIn("确认前标准 `验收场景.md` 和 `验收矩阵.md` 保持 `DRAFT`", design_skill)
+        self.assertIn("草案、场景文件、矩阵文件和正式事件必须使用同一份 SPEC 数据", workflow_contract)
+
     def test_acceptance_design_uses_sequential_scn_ids(self) -> None:
         design_skill = (SCRIPT_DIR.parent.parent / "dc-acceptance-design" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("未占用的三位序号", design_skill)
@@ -621,22 +630,26 @@ class ContextLoopTest(unittest.TestCase):
         self.assertIn("复用同一个 SCN ID", design_skill)
         self.assertIn("更新场景沿用已有 ID", design_skill)
 
-    def test_issue_intake_is_loop_owned_and_each_round_refreshes_context(self) -> None:
+    def test_issue_intake_is_loop_owned_and_gated_by_key_actions(self) -> None:
         loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
         grilling_skill = (SCRIPT_DIR.parent.parent / "dc-grilling" / "SKILL.md").read_text(encoding="utf-8")
         implementation_skill = (SCRIPT_DIR.parent.parent / "dc-implementation-execution" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("每轮开始都通过 `dc-issue-intake` 完整读取 Issue 评论", loop_skill)
-        self.assertIn("当前轮的节点技能可复用本轮已读取的 context，但不得跨轮复用", loop_skill)
+        self.assertIn("完整 `dc-issue-intake` 只在读取门禁规定的关键动作触发", loop_skill)
+        self.assertIn("普通交互复用当前动作上下文", loop_skill)
+        self.assertIn("读取门禁按动作而非对话轮次计算", loop_skill)
+        self.assertIn("首次处理 Issue、进入 REQ/SPEC/实现方案设计动作前、正式验收开始前以及用户明确刷新时", loop_skill)
+        self.assertIn("验收失败后重新设计或调整实现时，在对应动作前重新执行", loop_skill)
         self.assertIn("每轮只处理一个责任节点", loop_skill)
         self.assertIn("最多调用一个节点技能", loop_skill)
         self.assertIn("最多发布一个结构化事件", loop_skill)
-        self.assertIn("下一轮重新 intake", loop_skill)
+        self.assertIn("下一个关键动作在其动作入口重新 intake", loop_skill)
         self.assertIn("本轮输出只报告事实、结果和下一轮入口", loop_skill)
         self.assertIn("intake 覆盖状态为 `FULL`", loop_skill)
         self.assertIn("节点技能不得自行调用 `dc-issue-intake`", loop_skill)
         self.assertIn("本技能不自行调用 `dc-issue-intake`", grilling_skill)
         self.assertIn("进入本技能后不调用 `dc-issue-intake`", implementation_skill)
-        self.assertNotIn("每次进入本技能都必须执行", loop_skill)
+        self.assertNotIn("每轮开始都通过 `dc-issue-intake` 完整读取 Issue 评论", loop_skill)
+        self.assertNotIn("每轮重新读取原始评论", loop_skill)
         self.assertNotIn("节点技能返回结果后重新调用 `dc-issue-intake`", loop_skill)
         self.assertNotIn("每次开始都通过 `dc-issue-intake`", grilling_skill)
         self.assertNotIn("进入本技能后先调用 `dc-issue-intake`", implementation_skill)
