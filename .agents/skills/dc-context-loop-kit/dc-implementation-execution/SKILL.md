@@ -92,6 +92,8 @@ human_gate:
 
 本地计划可以使用 `PLANNED → IN_PROGRESS → READY`，整体无法继续时为 `BLOCKED`；切片可以使用 `PLANNED → IN_PROGRESS → COMPLETED`，单个切片无法继续时为 `BLOCKED`。这些状态只服务本地执行，不发布为 Issue 评论。`COMPLETED` 只表示实现切片完成，不代表验收通过。
 
+事件准备的 `--output-dir` 必须位于当前 operation workspace，`prepare_event.py` 会拒绝 `.local/dc-loop/drafts` 及其子目录。历史遗留的事件 YAML 不得继续作为本地事实来源；实现修复时使用 `dc-context-loop/scripts/event_artifact_cleanup.py cleanup_legacy_drafts` 按明确 Issue 清理，并保留 Markdown 草案。
+
 每个可通过稳定公开代码接口验证的行为，默认按一个垂直切片执行 `RED → GREEN → REFACTOR`，详细规则见 [../dc-proof-resources/references/tdd-rules.md](../dc-proof-resources/references/tdd-rules.md)。以下情况才允许豁免，并在 `test_strategy.exemptions` 中写清受影响 AST、理由和替代检查：
 
 - 工程装配、依赖注入、迁移或启动配置；

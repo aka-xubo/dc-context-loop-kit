@@ -102,7 +102,7 @@ specification:
   open_questions: []
 ```
 
-新增和修改对象使用完整结构并保留稳定 ID；删除只列出对象 ID；同一 ID 不得同时出现在多个操作中，且至少有一项变化。人类评论标题必须展示 `SPEC-*` 编号，按事件形态展示当前完整场景、检查责任、原子断言，或增量的基础 SPEC、新增、修改、删除和未决事项。机器 YAML 保存为 Issue comment 附件，并与同一 `event_id` 和 `subject_id` 关联，供后续实现和验收按需下载解析。模型负责将增量应用到基础 SPEC；准备脚本只校验和渲染，不读取历史或自动合并。
+新增和修改对象使用完整结构并保留稳定 ID；删除只列出对象 ID；同一 ID 不得同时出现在多个操作中，且至少有一项变化。人类评论标题必须展示 `SPEC-*` 编号，按事件形态展示当前完整场景、检查责任、原子断言，或增量的基础 SPEC、新增、修改、删除和未决事项。机器 YAML 保存为 Issue comment 附件，并与同一 `event_id` 和 `subject_id` 关联，供后续实现和验收按需下载解析。模型负责将增量应用到基础 SPEC；准备脚本只校验和渲染，不读取历史或自动合并。事件准备输出目录不得使用 `.local/dc-loop/drafts`；历史遗留事件 YAML 应使用 `event_artifact_cleanup.py cleanup_legacy_drafts` 按 Issue 范围清理，Markdown 草案不受影响。
 
 ## IMPLEMENTATION 与 ACCEPTANCE
 

@@ -366,6 +366,55 @@ class ContextLoopTest(unittest.TestCase):
         )
         self.assertNotEqual(result.returncode, 0)
 
+    def test_legacy_event_cleanup_is_issue_scoped_and_preserves_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            current = root / ".local" / "dc-loop" / "drafts" / "HTW-1"
+            other = root / ".local" / "dc-loop" / "drafts" / "HTW-2"
+            current.mkdir(parents=True)
+            other.mkdir(parents=True)
+            (current / "IMP-002-事件.yaml").write_text("event", encoding="utf-8")
+            (current / "SPEC-001-事件.yaml").write_text("event", encoding="utf-8")
+            (current / "实现计划.md").write_text("keep", encoding="utf-8")
+            (current / "notes.yaml").write_text("keep", encoding="utf-8")
+            (other / "IMP-999-事件.yaml").write_text("keep", encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT_DIR / "event_artifact_cleanup.py"),
+                    "cleanup_legacy_drafts",
+                    "--worktree-root", str(root),
+                    "--issue-key", "HTW-1",
+                ],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["count"], 2)
+            self.assertFalse((current / "IMP-002-事件.yaml").exists())
+            self.assertFalse((current / "SPEC-001-事件.yaml").exists())
+            self.assertTrue((current / "实现计划.md").exists())
+            self.assertTrue((current / "notes.yaml").exists())
+            self.assertTrue((other / "IMP-999-事件.yaml").exists())
+
+    def test_prepare_event_rejects_legacy_drafts_output(self) -> None:
+        document = requirement_event("EVT-LEGACY-DRAFT-OUTPUT")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / ".local" / "dc-loop" / "drafts" / "HTW-1"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable, str(SCRIPT_DIR / "prepare_event.py"),
+                    "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir),
+                ],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("不得位于 .local/dc-loop/drafts", result.stderr)
+            self.assertFalse(output_dir.exists())
+
     def test_delivery_index_contains_only_issue_navigation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

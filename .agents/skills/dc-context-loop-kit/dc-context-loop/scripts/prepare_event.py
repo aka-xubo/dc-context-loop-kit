@@ -807,6 +807,16 @@ def render_machine_block(event: dict[str, Any]) -> str:
 - 解析方式：从 Issue comment 附件下载并解析该 YAML；评论正文不内嵌机器 YAML。"""
 
 
+def ensure_output_not_legacy_drafts(output_dir: Path) -> None:
+    """事件评论和附件不得写入长期 drafts 目录。"""
+    resolved = output_dir.expanduser().resolve()
+    parts = resolved.parts
+    marker = (".local", "dc-loop", "drafts")
+    for index in range(len(parts) - len(marker) + 1):
+        if parts[index:index + len(marker)] == marker:
+            raise EventError("事件输出目录不得位于 .local/dc-loop/drafts；请使用本次 operation workspace")
+
+
 def render_req(event: dict[str, Any]) -> str:
     requirement = event["requirement"]
     return f"""[DP:REQ] {requirement['id']} 当前需求
@@ -874,6 +884,7 @@ def main() -> int:
         if args.verify_git:
             verify_git_binding(event)
         duplicate = info["event_id"] in existing_event_ids(load_comments(args.comments_json))
+        ensure_output_not_legacy_drafts(args.output_dir)
         args.output_dir.mkdir(parents=True, exist_ok=True)
         output = args.output_dir / f"{info['event_id']}.md"
         attachment = args.output_dir / event_attachment_filename(event)
