@@ -613,12 +613,16 @@ class ContextLoopTest(unittest.TestCase):
         self.assertIn("确认前必须给出可点击的草案文件链接", design_skill)
         self.assertIn("确认前不得发布对应 REQ/SPEC 事件", loop_skill)
 
-    def test_issue_intake_is_loop_owned_and_same_turn_context_is_reused(self) -> None:
+    def test_issue_intake_is_loop_owned_and_each_round_refreshes_context(self) -> None:
         loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
         grilling_skill = (SCRIPT_DIR.parent.parent / "dc-grilling" / "SKILL.md").read_text(encoding="utf-8")
         implementation_skill = (SCRIPT_DIR.parent.parent / "dc-implementation-execution" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("首次处理 Issue、进入正式 ACCEPTANCE 前，或用户明确要求重新读取", loop_skill)
-        self.assertIn("普通节点交互复用当前 Agent 会话中的 Issue context", loop_skill)
+        self.assertIn("每轮开始都通过 `dc-issue-intake` 完整读取 Issue 评论", loop_skill)
+        self.assertIn("当前轮的节点技能可复用本轮已读取的 context，但不得跨轮复用", loop_skill)
+        self.assertIn("每轮只处理一个责任节点", loop_skill)
+        self.assertIn("最多调用一个节点技能", loop_skill)
+        self.assertIn("最多发布一个结构化事件", loop_skill)
+        self.assertIn("下一轮重新 intake", loop_skill)
         self.assertIn("intake 覆盖状态为 `FULL`", loop_skill)
         self.assertIn("节点技能不得自行调用 `dc-issue-intake`", loop_skill)
         self.assertIn("本技能不自行调用 `dc-issue-intake`", grilling_skill)

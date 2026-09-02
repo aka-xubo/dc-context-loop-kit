@@ -66,6 +66,24 @@
       "prompt": "Issue 中已有可解析且匹配的 REQ 和已确认 SPEC，用户要求继续开发。",
       "expected_output": "完成节点前置材料检查后允许进入 IMPLEMENTATION；检查结果应明确说明 REQ/SPEC 在线存在、引用匹配，再调用实现技能。",
       "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "上一轮已经读取过 Issue 并发布了 REQ；这一轮用户说继续生成 SPEC。",
+      "expected_output": "本轮开始重新调用 dc-issue-intake 完整读取 Issue 和附件，不使用上一轮 Issue context 或评论缓存替代；确认线上 REQ 后，本轮至多调用 SPEC 节点技能。",
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "当前 Issue 没有任何结构化事件，用户要求按完整流程把需求、规格和实现都做完。",
+      "expected_output": "本轮只选择并调用 REQ 节点技能，最多发布一条 REQ 事件；发布动作结束后停止本轮，不在同一轮继续生成 SPEC 或进入 IMPLEMENTATION。",
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "本轮 SPEC 事件发布接口返回 2xx，且当前上下文已经足够进入实现。",
+      "expected_output": "报告 SPEC 发布成功并结束本轮；不在同一轮调用实现技能。下一轮必须重新完整读取 Issue，确认 SPEC 在线存在后再判断是否进入 IMPLEMENTATION。",
+      "files": []
     }
   ]
 }
