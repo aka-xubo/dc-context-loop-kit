@@ -258,6 +258,8 @@ python3 <skill-dir>/scripts/prepare_event.py \
 
 REQ 事件发布时额外提供 `--requirement-file <需求.md>` 作为草案一致性门禁；其他节点不得提供。REQ 草案与事件的业务字段或发布说明存在差异时，脚本必须在生成评论和附件前失败。
 
+IMPLEMENTATION 事件发布时额外提供 `--spec-file <current-effective-spec-event.yaml>`。该文件必须是当前已确认并已合并为完整快照的 SPEC 事件；脚本据此校验 REQ、SCN、CHK、AST 与实现切片引用，并从同一份规格语义生成一行一个 AST 的关系表。缺少文件、直接传入未合并增量或引用不一致时必须阻断评论生成。
+
 `--output-dir` 只能使用本次操作工作区。工作区必须先由目标 IMPLEMENTATION
 事件的 `repository.worktree_root` 派生：
 

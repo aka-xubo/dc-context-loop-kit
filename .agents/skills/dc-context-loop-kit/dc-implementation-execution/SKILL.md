@@ -150,7 +150,7 @@ RED/GREEN/REFACTOR 只记录实现过程，不生成正式 RUN/ART。
 
 ## IMPLEMENTATION 完成事件
 
-节点协调器只在实现真正完成后发布一次事件。事件必须使用新的 `IMP-*`，直接保存 `implementation` 完成对象，并在 `impact.next_actions` 指向总协调器下一步。完成对象必须记录 `repository.worktree_root`、`repository.git_toplevel` 和完整 `git_commit`，供独立验收直接定位代码。事件发布前使用 `prepare_event.py --verify-git` 校验仓库根目录、commit、HEAD 和 tracked 工作区状态；校验失败不得发布。发布前由 `dc-context-loop` 在当前 Agent 上下文中展示完整人类摘要、事件标识和 YAML 附件引用，发布 API 的正文必须复用同一内容并附带同一操作工作区中的事件 YAML；发布结果只依据 API 状态码分类，不在发布后重新读取 Issue。后续修复或再次实现使用新的 `IMP-*`，不修改旧事件，也不提交实现差异表。
+节点协调器只在实现真正完成后发布一次事件。事件必须使用新的 `IMP-*`，直接保存 `implementation` 完成对象，并在 `impact.next_actions` 指向总协调器下一步。完成对象必须记录 `repository.worktree_root`、`repository.git_toplevel` 和完整 `git_commit`，供独立验收直接定位代码。事件发布前使用 `prepare_event.py --spec-file <current-effective-spec-event.yaml> --verify-git`：前者必须是已确认并合并为完整快照的当前 SPEC，用于校验实现引用并生成关系表；后者校验仓库根目录、commit、HEAD 和 tracked 工作区状态。任一校验失败不得发布。发布前由 `dc-context-loop` 在当前 Agent 上下文中展示完整人类摘要、事件标识和 YAML 附件引用，发布 API 的正文必须复用同一内容并附带同一操作工作区中的事件 YAML；发布结果只依据 API 状态码分类，不在发布后重新读取 Issue。后续修复或再次实现使用新的 `IMP-*`，不修改旧事件，也不提交实现差异表。
 
 完成对象必须从本地计划和真实工作区归纳 `requirement_ref`、`spec_refs`、交付 `summary`、已完成 `completed_items`、实际 `change_surface`、`development_checks`、`known_limits`、`repository`、完整 `git_commit` 和 `completion_review`。`completed_items` 保留切片 ID、类型、目标以及 CHK/AST 引用；`change_surface` 只记录本次实际涉及的文件、脚本、接口、数据库、配置、依赖和外部契约，不保存计划面，也不与上一次实现比较。`completion_review` 必须记录自测前预检、程序化复核和 Agent 语义复核均通过。
 

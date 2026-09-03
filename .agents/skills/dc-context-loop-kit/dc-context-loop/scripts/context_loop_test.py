@@ -255,6 +255,19 @@ def implementation_event(
     }
 
 
+def relation_specification_event(event_id: str = "EVT-SPEC-RELATION") -> dict:
+    document = specification_event(event_id)
+    spec = document["event"]["specification"]
+    spec["scenarios"][0].update({
+        "title": "展示完整关系链",
+        "business_result": "用户理解场景、切片、检查和断言的关系",
+        "then": [{"id": "THEN-001", "statement": "关系表按 AST 展示语义"}],
+    })
+    spec["checks"][0]["responsibility"] = "验证关系表的语义和覆盖范围"
+    spec["assertions"][0]["description"] = "关系表一行对应一个实际覆盖的 AST"
+    return document
+
+
 def acceptance_event(
     event_id: str,
     *,
@@ -323,15 +336,18 @@ class ContextLoopTest(unittest.TestCase):
     def test_new_numeric_implementation_requires_direct_spec_ref(self) -> None:
         document = implementation_event("EVT-IMP-NUMERIC", subject_id="IMP-001-01")
         document["event"]["implementation"]["spec_ref"] = "SPEC-001"
+        specification = relation_specification_event()
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             event_file = root / "event.yaml"
+            spec_file = root / "spec.yaml"
             output_dir = root / "out"
             comments_file = root / "comments.json"
             event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            spec_file.write_text(yaml.safe_dump(specification, allow_unicode=True, sort_keys=False), encoding="utf-8")
             comments_file.write_text(json.dumps([]), encoding="utf-8")
             result = subprocess.run(
-                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--comments-json", str(comments_file), "--output-dir", str(output_dir)],
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--spec-file", str(spec_file), "--issue", "HTW-1", "--comments-json", str(comments_file), "--output-dir", str(output_dir)],
                 check=False, capture_output=True, text=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -353,13 +369,16 @@ class ContextLoopTest(unittest.TestCase):
 
     def test_legacy_implementation_remains_readable(self) -> None:
         document = implementation_event("EVT-IMP-LEGACY", subject_id="IMP-001")
+        specification = relation_specification_event()
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             event_file = root / "event.yaml"
+            spec_file = root / "spec.yaml"
             output_dir = root / "out"
             event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            spec_file.write_text(yaml.safe_dump(specification, allow_unicode=True, sort_keys=False), encoding="utf-8")
             result = subprocess.run(
-                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--spec-file", str(spec_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
                 check=False, capture_output=True, text=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -384,15 +403,18 @@ class ContextLoopTest(unittest.TestCase):
         document["event"]["implementation"]["spec_ref"] = "SPEC-001"
         previous = implementation_event("EVT-IMP-ROUND-01", subject_id="IMP-001-01")
         previous["event"]["implementation"]["spec_ref"] = "SPEC-001"
+        specification = relation_specification_event()
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             event_file = root / "event.yaml"
+            spec_file = root / "spec.yaml"
             comments_file = root / "comments.json"
             output_dir = root / "out"
             event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            spec_file.write_text(yaml.safe_dump(specification, allow_unicode=True, sort_keys=False), encoding="utf-8")
             comments_file.write_text(json.dumps([comment("c1", "2026-08-26T10:00:00+09:00", previous)]), encoding="utf-8")
             result = subprocess.run(
-                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--comments-json", str(comments_file), "--output-dir", str(output_dir)],
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--spec-file", str(spec_file), "--issue", "HTW-1", "--comments-json", str(comments_file), "--output-dir", str(output_dir)],
                 check=False, capture_output=True, text=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -1100,22 +1122,38 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("modified.scenarios", result.stderr)
 
     def test_implementation_renders_completed_delivery(self) -> None:
-        document = implementation_event("EVT-IMP-001")
+        document = implementation_event("EVT-IMP-001", subject_id="IMP-001-01")
+        document["event"]["implementation"]["spec_ref"] = "SPEC-001"
+        specification = relation_specification_event()
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             event_file = root / "event.yaml"
+            spec_file = root / "spec.yaml"
             output_dir = root / "out"
             event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            spec_file.write_text(yaml.safe_dump(specification, allow_unicode=True, sort_keys=False), encoding="utf-8")
             result = subprocess.run(
-                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--spec-file", str(spec_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
                 check=False,
                 capture_output=True,
                 text=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             content = (output_dir / "EVT-IMP-001.md").read_text(encoding="utf-8")
-            self.assertIn("IMP-001 实现完成", content)
+            self.assertIn("IMP-001-01 实现完成", content)
             self.assertIn("交付摘要", content)
+            self.assertIn("## 覆盖摘要", content)
+            self.assertIn("## 验收关系", content)
+            self.assertIn("| 验收场景 | 实现切片 | 验收检查 | 原子断言 |", content)
+            self.assertIn("展示完整关系链", content)
+            self.assertIn("实现登录失败响应", content)
+            self.assertIn("验证关系表的语义和覆盖范围", content)
+            self.assertIn("关系表一行对应一个实际覆盖的 AST", content)
+            self.assertEqual(content.count("`AST-001`"), 1)
+            self.assertNotIn("## 绑定上下文", content)
+            self.assertNotIn("## 已完成内容", content)
+            self.assertNotIn("<br", content.lower())
+            self.assertNotIn("<table", content.lower())
             self.assertIn("实际变更面", content)
             self.assertIn("server/auth/login_handler.go", content)
             self.assertIn("POST /api/login", content)
@@ -1124,6 +1162,65 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("Git 根目录：/tmp/example-worktree", content)
             self.assertIn("完成前复核", content)
             self.assertIn("自测之后", content)
+            attachment = yaml.safe_load((output_dir / "IMP-001-01-事件.yaml").read_text(encoding="utf-8"))
+            self.assertEqual(attachment["event"]["implementation"]["spec_refs"], ["SCN-001", "CHK-001", "AST-001"])
+            self.assertEqual(attachment["event"]["implementation"]["completed_items"], document["event"]["implementation"]["completed_items"])
+
+    def test_implementation_expands_shared_scenario_and_check_per_slice_assertion(self) -> None:
+        document = implementation_event("EVT-IMP-SHARED")
+        document["event"]["implementation"]["completed_items"].append({
+            "id": "SLICE-002",
+            "title": "补充第二个实现切片",
+            "kind": "behavior_slice",
+            "objective": "由第二个切片覆盖同一断言",
+            "check_refs": ["CHK-001"],
+            "assertion_refs": ["AST-001"],
+        })
+        specification = relation_specification_event()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            spec_file = root / "spec.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            spec_file.write_text(yaml.safe_dump(specification, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--spec-file", str(spec_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            content = (output_dir / "EVT-IMP-SHARED.md").read_text(encoding="utf-8")
+            relation_rows = [line for line in content.splitlines() if line.startswith("| ") and "`AST-001`" in line]
+            self.assertEqual(len(relation_rows), 2)
+            self.assertTrue(any("`SLICE-001`" in line for line in relation_rows))
+            self.assertTrue(any("`SLICE-002`" in line for line in relation_rows))
+
+    def test_implementation_comment_requires_complete_matching_spec(self) -> None:
+        document = implementation_event("EVT-IMP-SPEC-GATE")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+            missing = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(root / "missing")],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertNotEqual(missing.returncode, 0)
+            self.assertIn("--spec-file", missing.stderr)
+            self.assertFalse((root / "missing").exists())
+
+            specification = relation_specification_event()
+            specification["event"]["specification"]["assertions"][0]["id"] = "AST-999"
+            spec_file = root / "spec.yaml"
+            spec_file.write_text(yaml.safe_dump(specification, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            mismatch = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--spec-file", str(spec_file), "--issue", "HTW-1", "--output-dir", str(root / "mismatch")],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertNotEqual(mismatch.returncode, 0)
+            self.assertIn("不存在的对象: AST-001", mismatch.stderr)
+            self.assertFalse((root / "mismatch").exists())
 
     def test_implementation_requires_completion_review(self) -> None:
         document = implementation_event("EVT-IMP-MISSING-REVIEW")
@@ -1243,9 +1340,11 @@ class ContextLoopTest(unittest.TestCase):
             document = implementation_event("EVT-IMP-GIT-OK", git_commit=commit)
             document["event"]["implementation"]["repository"] = {"worktree_root": str(root), "git_toplevel": str(root)}
             event_file = root / "event.yaml"
+            spec_file = root / "spec.yaml"
             output_dir = root / "out"
             event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
-            result = subprocess.run([sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--verify-git", "--output-dir", str(output_dir)], check=False, capture_output=True, text=True)
+            spec_file.write_text(yaml.safe_dump(relation_specification_event(), allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run([sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--spec-file", str(spec_file), "--issue", "HTW-1", "--verify-git", "--output-dir", str(output_dir)], check=False, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_verify_git_binding_rejects_fake_commit(self) -> None:
@@ -1258,9 +1357,11 @@ class ContextLoopTest(unittest.TestCase):
             document = implementation_event("EVT-IMP-GIT-BAD", git_commit="b" * 40)
             document["event"]["implementation"]["repository"] = {"worktree_root": str(root), "git_toplevel": str(root)}
             event_file = root / "event.yaml"
+            spec_file = root / "spec.yaml"
             output_dir = root / "out"
             event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
-            result = subprocess.run([sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--verify-git", "--output-dir", str(output_dir)], check=False, capture_output=True, text=True)
+            spec_file.write_text(yaml.safe_dump(relation_specification_event(), allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run([sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--spec-file", str(spec_file), "--issue", "HTW-1", "--verify-git", "--output-dir", str(output_dir)], check=False, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("Git 校验失败", result.stderr)
 

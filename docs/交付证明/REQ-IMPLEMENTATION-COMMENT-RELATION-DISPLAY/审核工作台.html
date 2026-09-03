@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="delivery-proof-source-sha256" content="030a7359e054192ec6f9c246c0720b1c05dc416bc65798ef0944659576312b8c">
+  <title>REQ-IMPLEMENTATION-COMMENT-RELATION-DISPLAY 审核工作台</title>
+  <style>
+    :root { --ink:#171b19; --muted:#66706b; --line:#dfe4e1; --paper:#fff; --soft:#f4f6f5; --red:#b42318; --green:#217a4b; --amber:#8a5a00; --blue:#1d4e89; --accent:#2f8f6b; --accent-soft:#eaf8f1; --canvas:#f7f8f7; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-width:0; color:var(--ink); background:var(--canvas); font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif; letter-spacing:0; }
+    a { color:var(--blue); text-decoration:none; } a:hover { text-decoration:underline; }
+    button { font:inherit; letter-spacing:0; }
+    header { border-bottom:1px solid var(--line); background:var(--paper); }
+    .top { width:min(1240px,calc(100% - 48px)); margin:0 auto; padding:28px 0 24px; }
+    .eyebrow { color:var(--red); font-weight:700; text-transform:uppercase; font-size:12px; }
+    h1 { margin:5px 0 8px; font-size:30px; line-height:1.2; letter-spacing:0; }
+    h2 { margin:0 0 16px; font-size:20px; letter-spacing:0; }
+    h3 { margin:0 0 8px; font-size:15px; letter-spacing:0; }
+    p { margin:7px 0; } .sub,.muted-text { color:var(--muted); }
+    main { width:min(1240px,calc(100% - 48px)); margin:0 auto; }
+    nav { display:flex; gap:20px; height:48px; align-items:center; border-bottom:1px solid var(--line); }
+    section { padding:25px 0; border-bottom:1px solid var(--line); }
+    .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); border:1px solid var(--line); background:var(--paper); }
+    .metric { padding:14px 16px; border-right:1px solid var(--line); } .metric:last-child { border-right:0; }
+    .metric strong { display:block; font-size:22px; } .metric span { color:var(--muted); font-size:12px; }
+    table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    th { text-align:left; color:var(--muted); font-size:12px; background:var(--soft); }
+    th,td { padding:10px 12px; border:1px solid var(--line); vertical-align:top; overflow-wrap:anywhere; }
+    .badge { display:inline-flex; align-items:center; min-height:24px; padding:2px 8px; border:1px solid currentColor; border-radius:4px; font-size:12px; white-space:nowrap; }
+    .badge.ok { color:var(--green); background:#f2fbf6; } .badge.warn { color:var(--amber); background:#fff9e9; }
+    .badge.bad { color:var(--red); background:#fff4f2; } .badge.info { color:var(--blue); background:#f2f7fc; } .badge.muted { color:var(--muted); background:var(--soft); }
+    .records { border-top:1px solid var(--line); } .record { display:grid; grid-template-columns:220px 1fr; gap:20px; padding:15px 0; border-bottom:1px solid var(--line); }
+    .mono { font-family:"SFMono-Regular",Consolas,monospace; font-size:12px; }
+    .statement { font-size:15px; } ul { margin:7px 0; padding-left:20px; }
+    .split { display:grid; grid-template-columns:1fr 1fr; gap:32px; }
+    .scenario-result { margin:0 0 14px; padding:13px 15px; border:1px solid #b8cec0; border-left:4px solid var(--green); border-radius:6px; background:#f5faf7; }
+    .scenario-result-label { display:block; margin-bottom:4px; color:var(--green); font-size:12px; font-weight:700; }
+    .scenario-result strong { display:block; font-size:16px; line-height:1.5; }
+    .scenario-fields { display:grid; grid-template-columns:1fr 1fr; column-gap:28px; border-top:1px solid var(--line); }
+    .scenario-field { display:grid; grid-template-columns:88px minmax(0,1fr); gap:10px; align-items:start; padding:12px 0; border-bottom:1px solid var(--line); }
+    .scenario-field.action { grid-column:1 / -1; }
+    .scenario-field-key { color:var(--muted); font-size:12px; font-weight:700; line-height:1.7; }
+    .scenario-field-value { min-width:0; margin:0; line-height:1.7; overflow-wrap:anywhere; }
+    .scenario-field-value ul { margin:0; padding-left:18px; }
+    .scenario-field-value li + li { margin-top:3px; }
+    .implementation-detail { margin-top:18px; padding:15px; border:1px solid var(--line); background:var(--paper); }
+    .implementation-detail > summary { cursor:pointer; font-weight:700; font-size:15px; }
+    .implementation-detail[open] > summary { margin-bottom:14px; }
+    .implementation-slice { padding:15px 0; border-top:1px solid var(--line); }
+    .implementation-slice:first-of-type { border-top:0; }
+    .slice-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+    .slice-heading h3 { margin-bottom:0; }
+    .gherkin-outcomes { margin:0; padding:0; list-style:none; }
+    .gherkin-outcomes li { display:grid; grid-template-columns:94px minmax(0,1fr); gap:10px; padding:4px 0; }
+    .notice { padding:12px 14px; border-left:3px solid var(--amber); background:#fff9e9; }
+    .okline { padding:12px 14px; border-left:3px solid var(--green); background:#f2fbf6; }
+    .verdict { margin:12px 0 4px; padding:12px 14px; border-left:3px solid var(--red); background:#fff4f2; }
+    .verdict.pass { border-left-color:var(--green); background:#f2fbf6; }
+    .verdict p:last-child { margin-bottom:0; }
+    .chain-check { margin:0; padding:18px 0; border:0; border-bottom:1px solid var(--line); background:transparent; }
+    .chain-check:last-child { border-bottom:0; }
+    .chain-check h4 { margin:0 0 5px; font-size:14px; }
+    .chain-runs { margin-top:12px; border-top:1px solid var(--line); }
+    .chain-run { padding:10px 0; border-bottom:1px solid var(--line); }
+    .chain-run:last-child { border-bottom:0; }
+    .chain-run-head { display:flex; flex-wrap:wrap; gap:7px; align-items:center; }
+    .chain-run .mono { overflow-wrap:anywhere; }
+    .run-command { margin:5px 0 0; color:var(--muted); font-family:"SFMono-Regular",Consolas,monospace; font-size:12px; overflow-wrap:anywhere; }
+    .artifact-links { display:inline-flex; flex-wrap:wrap; gap:6px; }
+    .artifact-link { font-family:"SFMono-Regular",Consolas,monospace; font-size:12px; }
+    .assertion-coverage { margin:10px 0 0; padding:0; list-style:none; border-top:1px solid var(--line); }
+    .assertion-coverage li { display:flex; flex-wrap:wrap; align-items:baseline; gap:7px; padding:8px 0; border-bottom:1px solid var(--line); }
+    .assertion-coverage li:last-child { border-bottom:0; }
+    .assertion-description { flex:1 1 360px; min-width:220px; }
+    .assertion-runs { color:var(--muted); font-family:"SFMono-Regular",Consolas,monospace; font-size:12px; }
+    .dependency-checks { margin:10px 0 0; padding:0; list-style:none; border-top:1px solid var(--line); }
+    .dependency-checks li { display:flex; flex-wrap:wrap; align-items:center; gap:7px; padding:8px 0; border-bottom:1px solid var(--line); }
+    .dependency-checks li:last-child { border-bottom:0; }
+    .scenario-browser { display:grid; grid-template-columns:290px minmax(0,1fr); min-height:640px; margin-top:18px; border:1px solid var(--line); background:var(--paper); }
+    .scenario-sidebar { min-width:0; border-right:1px solid var(--line); background:#fafbfa; }
+    .scenario-nav-head { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:56px; padding:14px 16px; border-bottom:1px solid var(--line); }
+    .scenario-nav-head strong { font-size:12px; text-transform:uppercase; }
+    .scenario-nav { display:flex; flex-direction:column; max-height:720px; overflow:auto; }
+    .scenario-nav-item { width:100%; min-height:82px; padding:14px 16px; border:0; border-bottom:1px solid var(--line); color:var(--ink); background:transparent; text-align:left; cursor:pointer; }
+    .scenario-nav-item:hover { background:#f1f5f3; }
+    .scenario-nav-item[aria-selected="true"] { background:var(--accent-soft); box-shadow:inset 3px 0 0 var(--accent); }
+    .scenario-nav-item:focus-visible,.detail-tab:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+    .scenario-nav-line { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
+    .scenario-nav-id { color:var(--muted); font-family:"SFMono-Regular",Consolas,monospace; font-size:11px; }
+    .scenario-nav-title { display:block; font-weight:650; line-height:1.45; overflow-wrap:anywhere; }
+    .scenario-nav-status { font-size:11px; font-weight:700; }
+    .scenario-nav-status.pass { color:var(--green); } .scenario-nav-status.blocked,.scenario-nav-status.fail { color:var(--red); } .scenario-nav-status.pending { color:var(--muted); }
+    .scenario-detail { min-width:0; }
+    .scenario-pane { min-width:0; }
+    .scenario-pane[hidden],.scenario-tab-panel[hidden] { display:none; }
+    .scenario-pane-header { padding:24px 28px 20px; border-bottom:1px solid var(--line); }
+    .scenario-pane-kicker { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:8px; }
+    .scenario-pane-header h3 { margin:0; font-size:23px; line-height:1.3; }
+    .scenario-tabs { display:flex; gap:28px; min-height:50px; padding:0 28px; border-bottom:1px solid var(--line); }
+    .detail-tab { position:relative; padding:0; border:0; color:var(--muted); background:transparent; font-weight:650; cursor:pointer; }
+    .detail-tab[aria-selected="true"] { color:var(--ink); }
+    .detail-tab[aria-selected="true"]::after { position:absolute; right:0; bottom:-1px; left:0; height:2px; background:var(--accent); content:""; }
+    .scenario-tab-panel { padding:24px 28px 32px; }
+    .scenario-check-summary { display:flex; align-items:center; justify-content:space-between; gap:16px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+    .scenario-check-summary p { color:var(--muted); }
+    footer { width:min(1240px,calc(100% - 48px)); margin:0 auto; padding:22px 0 40px; color:var(--muted); font-size:12px; }
+    @media (max-width:900px) {
+      .top,main,footer { width:min(100% - 32px,760px); }
+      .split,.record,.scenario-fields { grid-template-columns:1fr; }
+      .scenario-field.action { grid-column:auto; }
+      .scenario-browser { grid-template-columns:1fr; min-height:0; }
+      .scenario-sidebar { border-right:0; border-bottom:1px solid var(--line); }
+      .scenario-nav { flex-direction:row; max-height:none; overflow-x:auto; overflow-y:hidden; }
+      .scenario-nav-item { flex:0 0 230px; min-height:92px; border-right:1px solid var(--line); border-bottom:0; }
+      .scenario-nav-item[aria-selected="true"] { box-shadow:inset 0 -3px 0 var(--accent); }
+    }
+    @media (max-width:560px) {
+      .top,main,footer { width:calc(100% - 24px); }
+      .top { padding:22px 0 18px; }
+      h1 { font-size:25px; } h2 { font-size:18px; }
+      nav { height:auto; min-height:48px; flex-wrap:wrap; padding:10px 0; }
+      section { padding:20px 0; }
+      .metrics { grid-template-columns:1fr 1fr; }
+      .metric:nth-child(2n) { border-right:0; }
+      .scenario-pane-header,.scenario-tab-panel { padding-right:18px; padding-left:18px; }
+      .scenario-tabs { gap:22px; padding:0 18px; overflow-x:auto; }
+      .scenario-pane-header h3 { font-size:20px; }
+    }
+  </style>
+</head>
+<body><header><div class="top"><div class="eyebrow">REQ 审核工作台</div><h1>IMPLEMENTATION 评论关系展示优化</h1><p>REQ：<span class="mono">REQ-IMPLEMENTATION-COMMENT-RELATION-DISPLAY</span> · Issue No：<span class="mono">HTW-1744</span> · REQ 状态：<span class="badge ok">CONFIRMED</span> · 交付状态：<span class="badge info">待验证</span></p><p class="sub">用户能够从一处关系视图看懂每个实现切片服务的验收场景、验证责任和具体验收行为；评论优先展示业务语义，并保留稳定 ID 作为辅助追踪信息；相同的实现切片及其 CHK/AST 关系不再由绑定上下文和已完成内容重复展示；人类评论保持纯 Markdown 兼容，同时机器事件继续保留完整结构化引用</p></div></header>
+    <main><nav><a href="../需求清单.md">返回需求清单</a><a href="需求.md">查看需求定义文件</a></nav>
+    <section><h2>当前结论</h2><div class="metrics"><div class="metric"><strong>2</strong><span>SCN</span></div><div class="metric"><strong>3</strong><span>CHK</span></div><div class="metric"><strong>0/0</strong><span>PASSED 正式 RUN / ��轮 RUN</span></div></div><div class="notice">验收报告：<span class="badge muted">尚无报告</span><p>验收 Git commit：<span class="mono">未绑定</span></p><p>未通过场景：<a class="mono" href="#SCN-001">SCN-001</a>, <a class="mono" href="#SCN-002">SCN-002</a></p></div></section>
+    <section><h2>需求定义</h2><p class="statement">查看 IMPLEMENTATION 评论的用户能够直接理解验收场景、实现切片、验收检查和具体验收行为之间的对应关系，而不需要在重复的编号列表和章节之间手工比对</p><div class="split"><div><h3>纳入范围</h3><ul><li>优化 IMPLEMENTATION 事件的人类可读评论布局</li><li>用一张关系表统一展示 SCN、实现切片、CHK 和 AST 的语义及稳定 ID</li><li>关系表以一个 AST 为一行，使每个可验收行为具有明确的场景、切片和检查归属</li><li>将现有顶层规格编号长列表改为覆盖摘要，不再让编号承担主要解释职责</li><li>删除与关系表重复的已完成内容章节，并将仍需展示的切片信息并入关系表</li><li>仅使用 Multica 评论能够稳定呈现的纯 Markdown，不依赖 HTML 标签、单元格内嵌套列表、CSS 或 JavaScript</li><li>机器 YAML 继续保留 spec_refs、completed_items.check_refs 和 completed_items.assertion_refs，供校验、路由和验收使用</li></ul></div><div><h3>排除范围</h3><ul><li>改变 REQ、SCN、CHK、AST 的业务语义、稳定 ID 或引用关系</li><li>改变 IMPLEMENTATION 事件机器 YAML 的既有字段含义</li><li>改变 ACCEPTANCE 评论中的 RUN、ART、逐 AST 结果和证据展示</li><li>把评论展示改成图片、独立 HTML 页面或需要前端运行时支持的交互界面</li><li>在 IMPLEMENTATION 事件中复制并保存另一份 SCN、CHK 或 AST 自然语言定义</li></ul></div></div></section>
+    <section><h2>业务依赖与证明</h2><div class="records"><p class="muted-text">当前 REQ 无业务依赖。</p></div><p>被其他 REQ 关联：无</p></section>
+    <section><h2>验收链路</h2><p>验收场景：<span class="badge ok">CONFIRMED</span> · 验收矩阵：<span class="badge ok">CONFIRMED</span></p><p class="sub">左侧切换验收场景；右侧在场景说明与 CHK → RUN 证明之间切换。</p><div class="scenario-browser"><aside class="scenario-sidebar"><div class="scenario-nav-head"><strong>验收场景</strong><span class="mono">2 SCN</span></div><div class="scenario-nav" role="tablist" aria-label="验收场景列表"><button class="scenario-nav-item" id="scenario-tab-SCN-001" type="button" role="tab" aria-selected="true" aria-controls="SCN-001" data-scenario-target="SCN-001"><span class="scenario-nav-line"><span class="scenario-nav-id">SCN-001</span><span class="scenario-nav-status pending">待验证</span></span><span class="scenario-nav-title">用户无需手工查找编号或跨章节比对，就能从 IMPLEMENTATION 评论的一张关系表理解验收场景、实现切片、验收检查和具体验收行为的对应关系。</span></button><button class="scenario-nav-item" id="scenario-tab-SCN-002" type="button" role="tab" aria-selected="false" aria-controls="SCN-002" data-scenario-target="SCN-002"><span class="scenario-nav-line"><span class="scenario-nav-id">SCN-002</span><span class="scenario-nav-status pending">待验证</span></span><span class="scenario-nav-title">当规格或实现切片关系不完整时，系统不会生成看似完整但无法验证的 IMPLEMENTATION 关系评论。</span></button></div></aside><div class="scenario-detail"><article class="scenario-pane" id="SCN-001" role="tabpanel" aria-labelledby="scenario-tab-SCN-001"><div class="scenario-pane-header"><div class="scenario-pane-kicker"><span class="mono">SCN-001</span><span class="badge muted">待验证</span></div><h3>用户无需手工查找编号或跨章节比对，就能从 IMPLEMENTATION 评论的一张关系表理解验收场景、实现切片、验收检查和具体验收行为的对应关系。</h3></div><div class="scenario-tabs" role="tablist" aria-label="SCN-001 详情视图"><button class="detail-tab" id="SCN-001-overview-tab" type="button" role="tab" aria-selected="true" aria-controls="SCN-001-overview" data-view-target="overview">场景说明</button><button class="detail-tab" id="SCN-001-checks-tab" type="button" role="tab" aria-selected="false" aria-controls="SCN-001-checks" data-view-target="checks">检查与证据 · 2</button></div><div class="scenario-tab-panel" id="SCN-001-overview" role="tabpanel" aria-labelledby="SCN-001-overview-tab" data-view-panel="overview"><div class="scenario-result"><span class="scenario-result-label">业务结果</span><strong>用户无需手工查找编号或跨章节比对，就能从 IMPLEMENTATION 评论的一张关系表理解验收场景、实现切片、验收检查和具体验收行为的对应关系。</strong></div><div class="scenario-fields"><div class="scenario-field"><span class="scenario-field-key">GIVEN：</span><div class="scenario-field-value"><ul><li>当前 REQ 与 SPEC 已确认且可以解析</li><li>IMPLEMENTATION 事件包含实现切片以及完整的 spec_refs、check_refs 和 assertion_refs</li><li>评论渲染动作正在生成 IMPLEMENTATION 的人类可读摘要</li></ul></div></div><div class="scenario-field action"><span class="scenario-field-key">WHEN：</span><div class="scenario-field-value">生成 IMPLEMENTATION 评论</div></div><div class="scenario-field action"><span class="scenario-field-key">THEN：</span><div class="scenario-field-value"><ol class="gherkin-outcomes"><li><span class="mono">THEN-001</span><span>关系表按一个 AST 一行展开当前 IMPLEMENTATION 的实际覆盖范围</span></li><li><span class="mono">THEN-002</span><span>每一行同时展示验收场景、实现切片、验收检查和原子断言的自然语言语义及稳定 ID，编号只作为辅助追踪</span></li><li><span class="mono">THEN-003</span><span>顶层只保留当前覆盖摘要，切片关系不再在“绑定上下文”和“已完成内容”中重复出现</span></li><li><span class="mono">THEN-004</span><span>评论正文使用纯 Markdown，不包含 HTML 标签、br、HTML 表格或单元格内嵌套列表</span></li><li><span class="mono">THEN-005</span><span>多个切片共享同一 SCN 或 CHK 时，关系表仍按各自实际覆盖的 AST 正确展开，不合并或遗漏行</span></li><li><span class="mono">THEN-006</span><span>评论中的关系语义由当前有效 SPEC 和 IMPLEMENTATION 结构化引用推出，未复制另一份规格定义</span></li></ol></div></div></div></div><div class="scenario-tab-panel" id="SCN-001-checks" role="tabpanel" aria-labelledby="SCN-001-checks-tab" data-view-panel="checks" hidden><div class="scenario-check-summary"><div><strong>2 个检查</strong><p>按 CHK → RUN 展示当前场景的验证责任和证据。</p></div></div><div class="chain-check" id="check-CHK-001"><h4>CHK：<span class="mono">CHK-001</span> · 验证 IMPLEMENTATION 人类评论渲染器按实际覆盖范围生成一行一个 AST 的语义关系表、覆盖摘要和纯 Markdown 结构。</h4><p><span class="badge info">unit</span></p><p>必需证据类型：command_output</p><strong>AST 覆盖</strong><ul class="assertion-coverage"><li><span class="mono">AST-001</span><span class="badge warn">待验证</span><span class="assertion-description">生成的关系表严格按一个 AST 一行，并且只包含当前 IMPLEMENTATION 实际覆盖的 AST。</span><span class="assertion-runs">结果：SCN-001.THEN-001</span><span class="assertion-runs">RUN：无</span></li><li><span class="mono">AST-002</span><span class="badge warn">待验证</span><span class="assertion-description">关系表每行同时给出 SCN、实现切片、CHK 和 AST 的可读语义与稳定 ID，用户不需要跨表猜测编号含义。</span><span class="assertion-runs">结果：SCN-001.THEN-002</span><span class="assertion-runs">RUN：无</span></li><li><span class="mono">AST-003</span><span class="badge warn">待验证</span><span class="assertion-description">输出只保留覆盖摘要，且不存在与关系表重复的“绑定上下文”或“已完成内容”切片关系章节。</span><span class="assertion-runs">结果：SCN-001.THEN-003</span><span class="assertion-runs">RUN：无</span></li><li><span class="mono">AST-004</span><span class="badge warn">待验证</span><span class="assertion-description">评论正文仅使用可稳定呈现的纯 Markdown，不出现 HTML 标签、br、HTML 表格或单元格内嵌套列表。</span><span class="assertion-runs">结果：SCN-001.THEN-004</span><span class="assertion-runs">RUN：无</span></li><li><span class="mono">AST-005</span><span class="badge warn">待验证</span><span class="assertion-description">共享 SCN 或 CHK 的多个实现切片被按实际 AST 覆盖逐行展开，任何切片或 AST 都不会因去重而丢失。</span><span class="assertion-runs">结果：SCN-001.THEN-005</span><span class="assertion-runs">RUN：无</span></li><li><span class="mono">AST-006</span><span class="badge warn">待验证</span><span class="assertion-description">关系表中的自然语言语义来自当前有效 SPEC 的定义和 IMPLEMENTATION 的结构化引用，没有在 IMPLEMENTATION 事件中复制第二份规格定义。</span><span class="assertion-runs">结果：SCN-001.THEN-006</span><span class="assertion-runs">RUN：无</span></li></ul><div class="chain-runs"><strong>当前证明</strong><p class="muted-text">尚无当前 RUN 记录。</p></div></div><div class="chain-check" id="check-CHK-003"><h4>CHK：<span class="mono">CHK-003</span> · 验证人类评论布局变化不会丢失或改写 IMPLEMENTATION 事件 YAML 中的完整结构化引用字段。</h4><p><span class="badge info">unit</span></p><p>必需证据类型：command_output</p><strong>AST 覆盖</strong><ul class="assertion-coverage"><li><span class="mono">AST-009</span><span class="badge warn">待验证</span><span class="assertion-description">人类可读布局调整后，机器 YAML 仍完整保留 spec_refs、completed_items.check_refs 和 completed_items.assertion_refs 的原始结构化引用。</span><span class="assertion-runs">结果：SCN-001.THEN-006</span><span class="assertion-runs">RUN：无</span></li></ul><div class="chain-runs"><strong>当前证明</strong><p class="muted-text">尚无当前 RUN 记录。</p></div></div></div></article><article class="scenario-pane" id="SCN-002" role="tabpanel" aria-labelledby="scenario-tab-SCN-002" hidden><div class="scenario-pane-header"><div class="scenario-pane-kicker"><span class="mono">SCN-002</span><span class="badge muted">待验证</span></div><h3>当规格或实现切片关系不完整时，系统不会生成看似完整但无法验证的 IMPLEMENTATION 关系评论。</h3></div><div class="scenario-tabs" role="tablist" aria-label="SCN-002 详情视图"><button class="detail-tab" id="SCN-002-overview-tab" type="button" role="tab" aria-selected="true" aria-controls="SCN-002-overview" data-view-target="overview">场景说明</button><button class="detail-tab" id="SCN-002-checks-tab" type="button" role="tab" aria-selected="false" aria-controls="SCN-002-checks" data-view-target="checks">检查与证据 · 1</button></div><div class="scenario-tab-panel" id="SCN-002-overview" role="tabpanel" aria-labelledby="SCN-002-overview-tab" data-view-panel="overview"><div class="scenario-result"><span class="scenario-result-label">业务结果</span><strong>当规格或实现切片关系不完整时，系统不会生成看似完整但无法验证的 IMPLEMENTATION 关系评论。</strong></div><div class="scenario-fields"><div class="scenario-field"><span class="scenario-field-key">GIVEN：</span><div class="scenario-field-value"><ul><li>当前有效 SPEC 无法解析，或 SCN、CHK、AST、实现切片引用缺失、不匹配或超出当前覆盖范围</li></ul></div></div><div class="scenario-field action"><span class="scenario-field-key">WHEN：</span><div class="scenario-field-value">系统准备生成 IMPLEMENTATION 评论</div></div><div class="scenario-field action"><span class="scenario-field-key">THEN：</span><div class="scenario-field-value"><ol class="gherkin-outcomes"><li><span class="mono">THEN-007</span><span>评论生成被阻断，并报告具体缺失、无效或不匹配的引用缺口</span></li><li><span class="mono">THEN-008</span><span>阻断结果不会退化为只展示编号或生成不完整的关系表</span></li></ol></div></div></div></div><div class="scenario-tab-panel" id="SCN-002-checks" role="tabpanel" aria-labelledby="SCN-002-checks-tab" data-view-panel="checks" hidden><div class="scenario-check-summary"><div><strong>1 个检查</strong><p>按 CHK → RUN 展示当前场景的验证责任和证据。</p></div></div><div class="chain-check" id="check-CHK-002"><h4>CHK：<span class="mono">CHK-002</span> · 验证 SPEC 解析和 SCN、CHK、AST、实现切片引用一致性校验在发现缺口时阻断评论生成并报告具体原因。</h4><p><span class="badge info">unit</span></p><p>必需证据类型：command_output</p><strong>AST 覆盖</strong><ul class="assertion-coverage"><li><span class="mono">AST-007</span><span class="badge warn">待验证</span><span class="assertion-description">SPEC 无法解析或任一关系引用缺失、不匹配时，生成流程停止并指出具体缺口。</span><span class="assertion-runs">结果：SCN-002.THEN-007</span><span class="assertion-runs">RUN：无</span></li><li><span class="mono">AST-008</span><span class="badge warn">待验证</span><span class="assertion-description">失败路径不会生成只含编号的降级评论，也不会生成缺少语义关系的部分表格。</span><span class="assertion-runs">结果：SCN-002.THEN-008</span><span class="assertion-runs">RUN：无</span></li></ul><div class="chain-runs"><strong>当前证明</strong><p class="muted-text">尚无当前 RUN 记录。</p></div></div></div></article></div></div></section>
+
+    <section><h2>开发实现</h2><p>实现计划：<span class="badge info">READY</span> · blockers：0</p><p>人工门禁：<span class="badge muted">NOT_REQUIRED</span> · 风险类别：无</p><ul><li>SLICE-IMPLEMENTATION-COMMENT-RELATION-DISPLAY-001 · 从当前 SPEC 生成 IMPLEMENTATION 关系表 · COMPLETED</li><li>SLICE-IMPLEMENTATION-COMMENT-RELATION-DISPLAY-002 · 无效规格关系阻断评论生成 · COMPLETED</li></ul><details class="implementation-detail" open><summary>上下文盘点</summary><p>状态：<span class="badge ok">COMPLETED</span></p><table><thead><tr><th>领域</th><th>已发现事实</th><th>对计划的影响</th></tr></thead><tbody><tr><td>事件渲染入口</td><td>prepare_event.py 的 render_implementation 是 IMPLEMENTATION 评论唯一生产渲染入口，当前只读取 implementation 自身字段并输出“绑定上下文”和“已完成内容”。</td><td>关系表必须在该入口统一生成，并移除重复章节，避免绕过正式评论路径产生另一种展示。</td></tr><tr><td>规格语义来源</td><td>IMPLEMENTATION 事件只保存 spec_refs、completed_items.check_refs 和 completed_items.assertion_refs，不保存 SCN、CHK、AST 的自然语言定义；已确认 SPEC 事件附件保存完整规格快照。</td><td>prepare_event.py 需要接收并校验当前有效 SPEC 文件，从其结构化定义派生语义，不得从编号或手工文本猜测。</td></tr><tr><td>引用一致性</td><td>当前事件校验只验证引用格式，不验证实现引用是否存在于当前 SPEC，也不检查切片 AST 与 CHK 的归属关系。</td><td>在生成评论前增加 SPEC 解析、REQ 匹配、SCN/CHK/AST 引用和切片覆盖校验，缺口必须阻断生成。</td></tr><tr><td>回归测试</td><td>context_loop_test.py 已有 IMPLEMENTATION 事件和 prepare_event.py 调用测试，但尚未覆盖关系表语义、逐 AST 展开或无效 SPEC 阻断。</td><td>采用测试先行补充正常、多切片共享 CHK、缺失 SPEC、无效引用和机器 YAML 保真测试。</td></tr><tr><td>工程运行方式</td><td>本项目没有应用服务或外部系统；Python 脚本和 unittest 是现有验证入口，临时输出必须通过 operation_workspace.py 执行。</td><td>readiness 不需要应用启动或外部旅程，开发检查集中在受控 Python 回归测试和交付证明校验。</td></tr><tr><td>重做基线</td><td>本轮从 commit 26d37dfeb80178cf83174acbcf70c30eadc60be3 开始，该提交已增加交付事件数字编号、直接 SPEC 关联和历史序号校验；旧实现 fc8a0c75db6e4f9509efb997507ecd22ecfe9ad0 与其从共同父提交分叉。</td><td>关系展示能力必须在当前编号与关联校验之上重新实现，测试和生产逻辑都不得覆盖或删除 26d37df 的行为。</td></tr></tbody></table><div class="split"><div><h3>依据</h3><ul><li>AGENTS.md</li><li>README.md</li><li>.agents/skills/dc-context-loop-kit/dc-context-loop/SKILL.md</li><li>.agents/skills/dc-context-loop-kit/dc-implementation-execution/SKILL.md</li><li>.agents/skills/dc-context-loop-kit/dc-context-loop/scripts/prepare_event.py</li><li>.agents/skills/dc-context-loop-kit/dc-context-loop/scripts/context_loop_test.py</li><li>.agents/skills/dc-context-loop-kit/dc-context-loop/contracts/event.schema.yaml</li><li>.agents/skills/dc-context-loop-kit/dc-proof-resources/scripts/validate_delivery_proof.py</li></ul></div><div><h3>决策</h3><ul><li>由 prepare_event.py 通过 --spec-file 接收当前已确认的完整 SPEC 事件，先校验 requirement_ref、SCN、CHK、AST 与实现切片引用，再生成关系表。</li><li>保留交付摘要、实际变更面、开发检查、完成前复核和已知限制等交付信息；将规格编号与切片关系合并为“覆盖摘要”和一张一行一个 AST 的关系表，删除“绑定上下文”和“已完成内容”章节。</li><li>不 cherry-pick 旧实现提交；仅将其作为参考，在 26d37df 基线上按当前 SPEC 重新执行测试先行实现。</li></ul></div></div></details><details class="implementation-detail" open><summary>交付面</summary><table><thead><tr><th>面</th><th>状态</th><th>入口与预期</th><th>生产引用</th><th>测试引用</th></tr></thead><tbody><tr><td>None</td><td><span class="badge info">未声明</span></td><td><span class="muted-text">无</span></td><td><span class="muted-text">无</span></td><td><span class="muted-text">无</span></td></tr><tr><td>None</td><td><span class="badge info">未声明</span></td><td><span class="muted-text">无</span></td><td><span class="muted-text">无</span></td><td><span class="muted-text">无</span></td></tr></tbody></table></details><details class="implementation-detail" open><summary>实现切片详情 · 2 个</summary><article class="implementation-slice"><div class="slice-heading"><h3><span class="mono">SLICE-IMPLEMENTATION-COMMENT-RELATION-DISPLAY-001</span> · 从当前 SPEC 生成 IMPLEMENTATION 关系表</h3><span class="badge ok">COMPLETED</span></div><p>让 IMPLEMENTATION 评论按实际切片覆盖范围输出语义优先、稳定 ID 辅助的一行一个 AST 关系表和覆盖摘要。</p><div class="split"><div><strong>类型与依赖</strong><ul><li>behavior_slice</li></ul></div><div><strong>CHK / AST</strong><ul><li>CHK：CHK-001</li><li>CHK：CHK-003</li><li>AST：AST-001</li><li>AST：AST-002</li><li>AST：AST-003</li><li>AST：AST-004</li><li>AST：AST-005</li><li>AST：AST-006</li><li>AST：AST-009</li></ul></div></div><div class="split"><div><strong>生产代码</strong><ul><li>.agents/skills/dc-context-loop-kit/dc-context-loop/scripts/prepare_event.py</li><li>.agents/skills/dc-context-loop-kit/dc-context-loop/SKILL.md</li><li>.agents/skills/dc-context-loop-kit/dc-implementation-execution/SKILL.md</li><li>.agents/skills/dc-context-loop-kit/dc-context-loop/references/event-contract.md</li></ul></div><div><strong>测试代码</strong><ul><li>.agents/skills/dc-context-loop-kit/dc-context-loop/scripts/context_loop_test.py</li></ul></div></div></article><article class="implementation-slice"><div class="slice-heading"><h3><span class="mono">SLICE-IMPLEMENTATION-COMMENT-RELATION-DISPLAY-002</span> · 无效规格关系阻断评论生成</h3><span class="badge ok">COMPLETED</span></div><p>让无法解析或引用不一致的 SPEC/IMPLEMENTATION 组合在生成评论前失败，并给出具体缺口。</p><div class="split"><div><strong>类型与依赖</strong><ul><li>behavior_slice</li><li>依赖：SLICE-IMPLEMENTATION-COMMENT-RELATION-DISPLAY-001</li></ul></div><div><strong>CHK / AST</strong><ul><li>CHK：CHK-002</li><li>AST：AST-007</li><li>AST：AST-008</li></ul></div></div><div class="split"><div><strong>生产代码</strong><ul><li>.agents/skills/dc-context-loop-kit/dc-context-loop/scripts/prepare_event.py</li><li>.agents/skills/dc-context-loop-kit/dc-context-loop/SKILL.md</li><li>.agents/skills/dc-context-loop-kit/dc-implementation-execution/SKILL.md</li><li>.agents/skills/dc-context-loop-kit/dc-context-loop/references/event-contract.md</li></ul></div><div><strong>测试代码</strong><ul><li>.agents/skills/dc-context-loop-kit/dc-context-loop/scripts/context_loop_test.py</li></ul></div></div></article></details><details class="implementation-detail" open><summary>验收前置条件</summary><table><thead><tr><th>类别</th><th>状态</th><th>要求 / 校验</th></tr></thead><tbody><tr><td>configuration</td><td><span class="badge info">NOT_REQUIRED</span></td><td></td></tr><tr><td>persistence</td><td><span class="badge info">NOT_REQUIRED</span></td><td></td></tr><tr><td>application_start</td><td><span class="badge info">NOT_REQUIRED</span></td><td></td></tr></tbody></table></details></section>
+    </main><footer>只读派生视图 · 内容来自各 REQ 根目录当前 Markdown 定义 · source 030a7359e054</footer>
+<script>
+(() => {
+  const scenarioTabs = [...document.querySelectorAll('[data-scenario-target]')];
+  const scenarioPanes = [...document.querySelectorAll('.scenario-pane')];
+
+  function activateDetailTab(tab, focus = false) {
+    const pane = tab.closest('.scenario-pane');
+    if (!pane) return;
+    const target = tab.dataset.viewTarget;
+    pane.querySelectorAll('[data-view-target]').forEach(item => item.setAttribute('aria-selected', String(item === tab)));
+    pane.querySelectorAll('.scenario-tab-panel').forEach(panel => { panel.hidden = panel.dataset.viewPanel !== target; });
+    if (focus) tab.focus();
+  }
+
+  function activateScenario(tab, focus = false, updateHash = false) {
+    const target = tab.dataset.scenarioTarget;
+    scenarioTabs.forEach(item => item.setAttribute('aria-selected', String(item === tab)));
+    scenarioPanes.forEach(pane => { pane.hidden = pane.id !== target; });
+    if (focus) tab.focus();
+    if (updateHash) history.replaceState(null, '', '#' + target.replace(/^scenario-/, ''));
+  }
+
+  function bindArrowKeys(tabs, activate) {
+    tabs.forEach((tab, index) => tab.addEventListener('keydown', event => {
+      let next = null;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+      if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+      if (event.key === 'Home') next = 0;
+      if (event.key === 'End') next = tabs.length - 1;
+      if (next === null) return;
+      event.preventDefault();
+      activate(tabs[next], true, true);
+    }));
+  }
+
+  scenarioTabs.forEach(tab => tab.addEventListener('click', () => activateScenario(tab, false, true)));
+  bindArrowKeys(scenarioTabs, activateScenario);
+  scenarioPanes.forEach(pane => {
+    const detailTabs = [...pane.querySelectorAll('[data-view-target]')];
+    detailTabs.forEach(tab => tab.addEventListener('click', () => activateDetailTab(tab)));
+    bindArrowKeys(detailTabs, activateDetailTab);
+  });
+
+  function openHashTarget() {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const target = id ? document.getElementById(id) : null;
+    if (!target) return false;
+    const pane = target.classList.contains('scenario-pane') ? target : target.closest('.scenario-pane');
+    if (!pane) return false;
+    const scenarioTab = scenarioTabs.find(tab => tab.dataset.scenarioTarget === pane.id);
+    if (scenarioTab) activateScenario(scenarioTab);
+    if (target.classList.contains('chain-check')) {
+      const checksTab = pane.querySelector('[data-view-target="checks"]');
+      if (checksTab) activateDetailTab(checksTab);
+    }
+    requestAnimationFrame(() => target.scrollIntoView({block:'start'}));
+    return true;
+  }
+
+  if (!openHashTarget() && scenarioTabs[0]) activateScenario(scenarioTabs[0]);
+  window.addEventListener('hashchange', openHashTarget);
+})();
+</script></body>
+</html>

@@ -246,7 +246,7 @@ event:
         owner: acceptance-owner
 ```
 
-`completed_items` 中的切片 ID 使用 `SLICE-*`；`spec_refs` 可引用当前实现覆盖的 `SCN-*`、`CHK-*` 和 `AST-*`。`change_surface` 只记录本次实际涉及面；`completion_review` 必须记录自测前覆盖预检、程序化复核和 Agent 语义复核均通过。发布前必须使用 `prepare_event.py --verify-git` 验证仓库、commit、HEAD 和 tracked 工作区。
+`completed_items` 中的切片 ID 使用 `SLICE-*`；`spec_refs` 可引用当前实现覆盖的 `SCN-*`、`CHK-*` 和 `AST-*`。`change_surface` 只记录本次实际涉及面；`completion_review` 必须记录自测前覆盖预检、程序化复核和 Agent 语义复核均通过。准备 IMPLEMENTATION 评论时必须额外传入当前已确认且已合并为完整快照的 `--spec-file`；渲染器使用该文件校验实现引用，并从规格语义生成“验收场景 → 实现切片 → 验收检查 → 原子断言”关系表。发布前必须使用 `prepare_event.py --verify-git` 验证仓库、commit、HEAD 和 tracked 工作区。
 
 ## ACCEPTANCE：单次或全量验收结论
 
@@ -315,6 +315,6 @@ python3 <skill-dir>/scripts/prepare_event.py \
   --output-dir <operation-workspace>
 ```
 
-`--requirement-file` 仅用于 REQ 事件，其他节点不得提供。
+`--requirement-file` 仅用于 REQ 事件，其他节点不得提供。`--spec-file` 仅用于 IMPLEMENTATION 事件，必须指向当前有效的完整 SPEC 快照；不接受未合并的增量事件。
 
 脚本会校验节点字段、生成同名 Markdown 评论和 YAML 附件，并报告是否已存在相同 `event_id`。发布时正文必须复用生成的 Markdown，YAML 作为同一操作工作区中的附件上传；API 返回 2xx 才算发布成功。不要通过发布后的 Issue 重读来确认结果，也不要把本地路径、测试名称或退出码当作验收证据。

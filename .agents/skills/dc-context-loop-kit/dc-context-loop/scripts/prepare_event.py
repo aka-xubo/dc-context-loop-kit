@@ -706,16 +706,101 @@ def render_change_surface(value: Any, heading: str) -> str:
     return f"### {heading}\n\n" + "\n\n".join(sections)
 
 
-def render_implementation(event: dict[str, Any]) -> str:
+def load_implementation_spec(path: Path) -> tuple[str, dict[str, Any]]:
+    event = parse_document(path.resolve())
+    validate(event)
+    require(event["node"] == "SPEC", "--spec-file 必须是 SPEC 事件")
+    specification = event["specification"]
+    require("changes" not in specification, "当前有效 SPEC 必须是完整规格快照，不能直接使用未合并的增量事件")
+    return event["subject_id"], specification
+
+
+def implementation_relations(event: dict[str, Any], spec_subject_id: str, specification: dict[str, Any]) -> tuple[list[dict[str, str]], dict[str, int]]:
+    implementation = event["implementation"]
+    require(
+        specification["requirement_ref"] == implementation["requirement_ref"],
+        "当前 SPEC 的 requirement_ref 与 IMPLEMENTATION 不一致",
+    )
+    if implementation.get("spec_ref") is not None:
+        require(implementation["spec_ref"] == spec_subject_id, "IMPLEMENTATION 的 spec_ref 与 --spec-file 不一致")
+
+    scenarios = {item["id"]: item for item in specification["scenarios"]}
+    checks = {item["id"]: item for item in specification["checks"]}
+    assertions = {item["id"]: item for item in specification["assertions"]}
+    valid_refs = set(scenarios) | set(checks) | set(assertions)
+    declared_refs = set(implementation["spec_refs"])
+    unknown_refs = sorted(declared_refs - valid_refs)
+    require(not unknown_refs, f"IMPLEMENTATION spec_refs 引用了当前 SPEC 中不存在的对象: {', '.join(unknown_refs)}")
+
+    rows: list[dict[str, str]] = []
+    actual_refs: set[str] = set()
+    covered_scenarios: set[str] = set()
+    covered_checks: set[str] = set()
+    covered_assertions: set[str] = set()
+    for item in implementation["completed_items"]:
+        item_check_refs = set(item["check_refs"])
+        item_assertion_refs = item["assertion_refs"]
+        missing_checks = sorted(item_check_refs - set(checks))
+        require(not missing_checks, f"实现切片 {item['id']} 引用了当前 SPEC 中不存在的 CHK: {', '.join(missing_checks)}")
+        missing_assertions = sorted(set(item_assertion_refs) - set(assertions))
+        require(not missing_assertions, f"实现切片 {item['id']} 引用了当前 SPEC 中不存在的 AST: {', '.join(missing_assertions)}")
+        if item["kind"] == "behavior_slice":
+            require(item_assertion_refs, f"行为切片 {item['id']} 没有 assertion_refs，无法生成验收关系")
+        assertion_check_refs = {assertions[assertion_id]["check_id"] for assertion_id in item_assertion_refs}
+        require(
+            assertion_check_refs == item_check_refs,
+            f"实现切片 {item['id']} 的 check_refs 与 assertion_refs 所属 CHK 不一致",
+        )
+        for assertion_id in item_assertion_refs:
+            assertion = assertions[assertion_id]
+            check = checks[assertion["check_id"]]
+            scenario_ids: list[str] = []
+            for outcome_ref in assertion["outcome_refs"]:
+                scenario_id = outcome_ref.split(".", 1)[0]
+                require(scenario_id in scenarios, f"AST {assertion_id} 引用了当前 SPEC 中不存在的 SCN: {outcome_ref}")
+                require(scenario_id in check["scenario_ids"], f"AST {assertion_id} 的结果引用不属于 CHK {check['id']} 的场景: {outcome_ref}")
+                if scenario_id not in scenario_ids:
+                    scenario_ids.append(scenario_id)
+            covered_scenarios.update(scenario_ids)
+            covered_checks.add(check["id"])
+            covered_assertions.add(assertion_id)
+            actual_refs.update(scenario_ids)
+            actual_refs.add(check["id"])
+            actual_refs.add(assertion_id)
+            scenario_text = "；".join(f"{scenarios[scenario_id]['title']}（`{scenario_id}`）" for scenario_id in scenario_ids)
+            rows.append({
+                "scenario": scenario_text,
+                "slice": f"{item['title']}（`{item['id']}`）：{item['objective']}",
+                "check": f"{check['responsibility']}（`{check['id']}`）",
+                "assertion": f"{assertion['description']}（`{assertion_id}`）",
+            })
+    missing_declared = sorted(actual_refs - declared_refs)
+    extra_declared = sorted(declared_refs - actual_refs)
+    require(
+        not missing_declared and not extra_declared,
+        "IMPLEMENTATION spec_refs 与实现切片实际覆盖不一致："
+        f"缺失 {', '.join(missing_declared) or '无'}；多余 {', '.join(extra_declared) or '无'}",
+    )
+    return rows, {
+        "scenarios": len(covered_scenarios),
+        "slices": len(implementation["completed_items"]),
+        "checks": len(covered_checks),
+        "assertions": len(covered_assertions),
+    }
+
+
+def render_implementation(event: dict[str, Any], spec_subject_id: str, specification: dict[str, Any]) -> str:
     implementation = event["implementation"]
     impact = event["impact"]
-    completed = "\n".join(
-        f"### {item['id']} {item['title']}\n\n"
-        f"- 类型：{item['kind']}\n"
-        f"- 目标：{item['objective']}\n"
-        f"- CHK：{', '.join(item['check_refs']) or '无'}\n"
-        f"- AST：{', '.join(item['assertion_refs']) or '无'}"
-        for item in implementation["completed_items"]
+    relations, coverage = implementation_relations(event, spec_subject_id, specification)
+
+    def relation_cell(value: str) -> str:
+        return value.replace("|", "\\|").replace("\n", " ")
+
+    relation_rows = "\n".join(
+        f"| {relation_cell(row['scenario'])} | {relation_cell(row['slice'])} | "
+        f"{relation_cell(row['check'])} | {relation_cell(row['assertion'])} |"
+        for row in relations
     )
     checks = "\n".join(
         f"| `{check['command']}` | {check['status']} | {check.get('summary', '无')} |"
@@ -731,19 +816,24 @@ def render_implementation(event: dict[str, Any]) -> str:
 
 {implementation['summary']}
 
-## 绑定上下文
+## 覆盖摘要
 
 - 状态：{implementation['status']}
 - 需求：{implementation['requirement_ref']}
 - 直接 SPEC：{implementation.get('spec_ref', '未声明（历史格式）')}
-- 规格：{', '.join(implementation['spec_refs']) or '无'}
+- 验收场景：{coverage['scenarios']} 个
+- 实现切片：{coverage['slices']} 个
+- 验收检查：{coverage['checks']} 个
+- 原子断言：{coverage['assertions']} 个
 - 实现工作树：{implementation['repository']['worktree_root']}
 - Git 根目录：{implementation['repository']['git_toplevel']}
 - Git commit：{implementation['git_commit']}
 
-## 已完成内容
+## 验收关系
 
-{completed}
+| 验收场景 | 实现切片 | 验收检查 | 原子断言 |
+|---|---|---|---|
+{relation_rows}
 
 {render_change_surface(implementation['change_surface'], '实际变更面')}
 
@@ -1062,13 +1152,14 @@ def render_req(event: dict[str, Any]) -> str:
 {render_machine_block(event)}"""
 
 
-def render(event: dict[str, Any]) -> str:
+def render(event: dict[str, Any], specification: tuple[str, dict[str, Any]] | None = None) -> str:
     if event["node"] == "REQ":
         return render_req(event)
     if event["node"] == "SPEC":
         return render_spec(event)
     if event["node"] == "IMPLEMENTATION":
-        return render_implementation(event)
+        require(specification is not None, "生成 IMPLEMENTATION 评论必须提供当前有效 SPEC")
+        return render_implementation(event, *specification)
     if event["node"] == "ACCEPTANCE":
         return render_acceptance(event)
     raise EventError(f"无法渲染节点: {event['node']}")
@@ -1080,6 +1171,7 @@ def main() -> int:
     parser.add_argument("--issue", required=True)
     parser.add_argument("--comments-json", type=Path)
     parser.add_argument("--requirement-file", type=Path, help="REQ 发布时用于一致性校验的已确认需求草案")
+    parser.add_argument("--spec-file", type=Path, help="IMPLEMENTATION 评论渲染使用的当前有效完整 SPEC 事件")
     parser.add_argument("--verify-git", action="store_true", help="验证事件仓库路径、commit、HEAD 和 tracked 工作区状态")
     parser.add_argument("--output-dir", required=True, type=Path)
     args = parser.parse_args()
@@ -1099,13 +1191,20 @@ def main() -> int:
         duplicate = info["event_id"] in existing_event_ids(comments)
         if not duplicate:
             validate_history_numbering(event, comments)
+        specification = None
+        if info["node"] == "IMPLEMENTATION":
+            require(args.spec_file is not None, "生成 IMPLEMENTATION 评论必须提供 --spec-file")
+            specification = load_implementation_spec(args.spec_file)
+        else:
+            require(args.spec_file is None, "--spec-file 只用于 IMPLEMENTATION 事件")
         ensure_output_not_legacy_drafts(args.output_dir)
-        args.output_dir.mkdir(parents=True, exist_ok=True)
         output = args.output_dir / f"{info['event_id']}.md"
         attachment = args.output_dir / event_attachment_filename(event)
         machine = yaml.safe_dump({"document_type": "deep_crew_delivery_event", "event": event}, allow_unicode=True, sort_keys=False)
+        rendered = render(event, specification)
+        args.output_dir.mkdir(parents=True, exist_ok=True)
         attachment.write_text(machine, encoding="utf-8")
-        output.write_text(render(event), encoding="utf-8")
+        output.write_text(rendered, encoding="utf-8")
         print(json.dumps({"issue": args.issue, "event_id": info["event_id"], "duplicate": duplicate, "comment_file": str(output.resolve()), "attachment_file": str(attachment.resolve())}, ensure_ascii=False, indent=2))
         return 0
     except (EventError, OSError, ValueError, json.JSONDecodeError, yaml.YAMLError) as error:
