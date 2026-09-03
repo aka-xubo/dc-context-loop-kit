@@ -259,6 +259,9 @@ $defs:
     properties:
       status: {const: READY}
       requirement_ref: {type: string, pattern: '^REQ-[A-Za-z0-9_-]+$'}
+      spec_ref:
+        type: string
+        pattern: '^SPEC-[0-9]{3}$'
       spec_refs: {type: array, items: {type: string, pattern: '^(SCN|CHK|AST)-[A-Za-z0-9_-]+$'}}
       summary: {type: string, minLength: 1}
       completed_items:

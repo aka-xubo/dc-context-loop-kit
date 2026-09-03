@@ -22,6 +22,10 @@ DELIVERY_PROOF_BLOCK_RE = re.compile(
 EVENT_ID_RE = re.compile(r"^EVT-[A-Za-z0-9_-]+$")
 EVENT_ID_TEXT_RE = re.compile(r"event_id：`(EVT-[A-Za-z0-9_-]+)`")
 SUBJECT_ID_RE = re.compile(r"^(SPEC|IMP|ACC)-[A-Za-z0-9_-]+$")
+SPEC_NUMERIC_RE = re.compile(r"^SPEC-([0-9]{3})$")
+IMP_NUMERIC_RE = re.compile(r"^IMP-([0-9]{3})-([0-9]{2,})$")
+ACC_TARGETED_NUMERIC_RE = re.compile(r"^ACC-([0-9]{3})-([0-9]{2})-([0-9]{2,})$")
+ACC_FULL_NUMERIC_RE = re.compile(r"^ACC-ALL-([0-9]{2,})$")
 REQ_ID_RE = re.compile(r"^REQ-[A-Za-z0-9_-]+$")
 ISSUE_NO_RE = re.compile(r"^[A-Z][A-Z0-9]*-[1-9][0-9]*$")
 DEP_ID_RE = re.compile(r"^DEP-[A-Za-z0-9_-]+$")
@@ -50,6 +54,13 @@ def require(condition: bool, message: str) -> None:
 def nonempty(value: Any, label: str) -> str:
     require(isinstance(value, str) and value.strip(), f"{label} 必须是非空字符串")
     return value.strip()
+
+
+def validate_numeric_or_legacy_id(value: Any, prefix: str, label: str) -> None:
+    require(isinstance(value, str) and value.startswith(prefix + "-"), f"{label} 必须为 {prefix}-*")
+    suffix = value[len(prefix) + 1:]
+    if suffix.isdigit():
+        require(re.fullmatch(r"[0-9]{3}", suffix) is not None, f"{label} 的数字编号必须为三位")
 
 
 def ensure_keys(value: dict[str, Any], allowed: set[str], label: str) -> None:
@@ -197,7 +208,7 @@ def validate_specification(specification: Any) -> None:
         require(isinstance(scenario, dict), f"scenarios[{index}] 必须是对象")
         for field in ("id", "title", "business_result", "given", "when", "then", "delivery_surfaces"):
             require(field in scenario, f"scenarios[{index}] 缺少字段: {field}")
-        require(isinstance(scenario["id"], str) and SCN_ID_RE.fullmatch(scenario["id"]), f"scenarios[{index}].id 必须为 SCN-*")
+        validate_numeric_or_legacy_id(scenario["id"], "SCN", f"scenarios[{index}].id")
         nonempty(scenario["title"], f"scenarios[{index}].title")
         nonempty(scenario["business_result"], f"scenarios[{index}].business_result")
         string_list(scenario["given"], f"scenarios[{index}].given")
@@ -220,7 +231,7 @@ def validate_specification(specification: Any) -> None:
         require(isinstance(check, dict), f"checks[{index}] 必须是对象")
         for field in ("id", "scenario_ids", "verification_type", "responsibility", "required", "blocking"):
             require(field in check, f"checks[{index}] 缺少字段: {field}")
-        require(isinstance(check["id"], str) and CHK_ID_RE.fullmatch(check["id"]), f"checks[{index}].id 必须为 CHK-*")
+        validate_numeric_or_legacy_id(check["id"], "CHK", f"checks[{index}].id")
         require(isinstance(check["scenario_ids"], list) and check["scenario_ids"], f"checks[{index}].scenario_ids 必须是非空数组")
         require(set(check["scenario_ids"]).issubset(set(scenario_ids)), f"checks[{index}] 引用了当前 SPEC 中不存在的 SCN")
         require(check["verification_type"] in {"unit", "api", "ui", "e2e"}, f"checks[{index}].verification_type 非法")
@@ -235,7 +246,7 @@ def validate_specification(specification: Any) -> None:
         require(isinstance(assertion, dict), f"assertions[{index}] 必须是对象")
         for field in ("id", "check_id", "outcome_refs", "assertion_type", "description"):
             require(field in assertion, f"assertions[{index}] 缺少字段: {field}")
-        require(isinstance(assertion["id"], str) and AST_ID_RE.fullmatch(assertion["id"]), f"assertions[{index}].id 必须为 AST-*")
+        validate_numeric_or_legacy_id(assertion["id"], "AST", f"assertions[{index}].id")
         require(assertion["check_id"] in check_ids, f"assertions[{index}] 引用了当前 SPEC 中不存在的 CHK")
         require(isinstance(assertion["outcome_refs"], list) and assertion["outcome_refs"], f"assertions[{index}].outcome_refs 必须是非空数组")
         require(set(assertion["outcome_refs"]).issubset(outcome_refs), f"assertions[{index}] 引用了当前 SPEC 中不存在的结果")
@@ -249,7 +260,7 @@ def validate_delta_scenario(scenario: Any, label: str) -> str:
     require(isinstance(scenario, dict), f"{label} 必须是对象")
     for field in ("id", "title", "business_result", "given", "when", "then", "delivery_surfaces"):
         require(field in scenario, f"{label} 缺少字段: {field}")
-    require(isinstance(scenario["id"], str) and SCN_ID_RE.fullmatch(scenario["id"]), f"{label}.id 必须为 SCN-*")
+    validate_numeric_or_legacy_id(scenario["id"], "SCN", f"{label}.id")
     nonempty(scenario["title"], f"{label}.title")
     nonempty(scenario["business_result"], f"{label}.business_result")
     string_list(scenario["given"], f"{label}.given")
@@ -270,10 +281,10 @@ def validate_delta_check(check: Any, label: str) -> str:
     require(isinstance(check, dict), f"{label} 必须是对象")
     for field in ("id", "scenario_ids", "verification_type", "responsibility", "required", "blocking"):
         require(field in check, f"{label} 缺少字段: {field}")
-    require(isinstance(check["id"], str) and CHK_ID_RE.fullmatch(check["id"]), f"{label}.id 必须为 CHK-*")
+    validate_numeric_or_legacy_id(check["id"], "CHK", f"{label}.id")
     require(isinstance(check["scenario_ids"], list) and check["scenario_ids"], f"{label}.scenario_ids 必须是非空数组")
     for scenario_id in check["scenario_ids"]:
-        require(isinstance(scenario_id, str) and SCN_ID_RE.fullmatch(scenario_id), f"{label}.scenario_ids 包含非法 SCN ID")
+        validate_numeric_or_legacy_id(scenario_id, "SCN", f"{label}.scenario_ids 包含非法 SCN ID")
     require(check["verification_type"] in {"unit", "api", "ui", "e2e"}, f"{label}.verification_type 非法")
     nonempty(check["responsibility"], f"{label}.responsibility")
     require(isinstance(check["required"], bool), f"{label}.required 必须是布尔值")
@@ -285,8 +296,8 @@ def validate_delta_assertion(assertion: Any, label: str) -> str:
     require(isinstance(assertion, dict), f"{label} 必须是对象")
     for field in ("id", "check_id", "outcome_refs", "assertion_type", "description"):
         require(field in assertion, f"{label} 缺少字段: {field}")
-    require(isinstance(assertion["id"], str) and AST_ID_RE.fullmatch(assertion["id"]), f"{label}.id 必须为 AST-*")
-    require(isinstance(assertion["check_id"], str) and CHK_ID_RE.fullmatch(assertion["check_id"]), f"{label}.check_id 必须为 CHK-*")
+    validate_numeric_or_legacy_id(assertion["id"], "AST", f"{label}.id")
+    validate_numeric_or_legacy_id(assertion["check_id"], "CHK", f"{label}.check_id")
     require(isinstance(assertion["outcome_refs"], list) and assertion["outcome_refs"], f"{label}.outcome_refs 必须是非空数组")
     for outcome_ref in assertion["outcome_refs"]:
         require(isinstance(outcome_ref, str) and re.fullmatch(r"SCN-[A-Za-z0-9_-]+\.THEN-[A-Za-z0-9_-]+", outcome_ref), f"{label}.outcome_refs 包含非法结果引用")
@@ -387,6 +398,9 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
             nonempty(value, "implementation.known_limits[]")
         validate_repository(implementation["repository"], "implementation.repository")
         require(isinstance(implementation["git_commit"], str) and GIT_COMMIT_RE.fullmatch(implementation["git_commit"]), "implementation.git_commit 必须是完整 Git commit")
+        if IMP_NUMERIC_RE.fullmatch(subject_id):
+            require(isinstance(implementation.get("spec_ref"), str) and re.fullmatch(r"SPEC-[0-9]{3}", implementation["spec_ref"]), "新格式 IMPLEMENTATION 必须提供三位数字 spec_ref")
+            require(implementation["spec_ref"] == f"SPEC-{subject_id.split('-')[1]}", "IMPLEMENTATION 编号大编号必须与 spec_ref 一致")
         review = implementation.get("completion_review")
         require(isinstance(review, dict), "IMPLEMENTATION 缺少 completion_review")
         if isinstance(review, dict):
@@ -448,6 +462,15 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
             require(isinstance(value, str) and re.fullmatch(r"(SCN|CHK|AST)-[A-Za-z0-9_-]+", value), f"acceptance.spec_refs 非法: {value}")
         for value in acceptance["implementation_refs"]:
             require(isinstance(value, str) and re.fullmatch(r"IMP-[A-Za-z0-9_-]+", value), f"acceptance.implementation_refs 非法: {value}")
+        targeted_match = ACC_TARGETED_NUMERIC_RE.fullmatch(subject_id)
+        full_match = ACC_FULL_NUMERIC_RE.fullmatch(subject_id)
+        if targeted_match:
+            require(acceptance["mode"] == "targeted", "targeted 新格式 ACC 必须使用 targeted 模式")
+            require(len(acceptance["implementation_refs"]) == 1, "targeted 新格式 ACC 必须且只能引用一个 IMP")
+            expected_imp = f"IMP-{targeted_match.group(1)}-{targeted_match.group(2)}"
+            require(acceptance["implementation_refs"][0] == expected_imp, "targeted ACC 编号必须与 implementation_refs 一致")
+        elif full_match:
+            require(acceptance["mode"] == "full", "ACC-ALL 新格式必须使用 full 模式")
         require(acceptance["mode"] in {"targeted", "full"}, "acceptance.mode 必须为 targeted 或 full")
         scope_refs = acceptance["scope_refs"]
         require(isinstance(scope_refs, dict), "acceptance.scope_refs 必须是对象")
@@ -496,6 +519,90 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
             nonempty(action.get("action"), f"next_actions[{index}].action")
             nonempty(action.get("owner"), f"next_actions[{index}].owner")
     return {"event_id": event_id, "node": node, "subject_id": subject_id}
+
+
+def _event_from_comment(item: dict[str, Any]) -> dict[str, Any] | None:
+    match = BLOCK_RE.search(str(item.get("content", "")))
+    if not match:
+        return None
+    try:
+        data = yaml.safe_load(match.group(1))
+    except yaml.YAMLError:
+        return None
+    event = data.get("event") if isinstance(data, dict) else None
+    return event if isinstance(event, dict) else None
+
+
+def collect_numbered_ids(event: dict[str, Any]) -> list[str]:
+    found: list[str] = []
+    subject_id = event.get("subject_id")
+    if isinstance(subject_id, str):
+        found.append(subject_id)
+    specification = event.get("specification")
+    if isinstance(specification, dict):
+        for key, prefix in (("scenarios", "SCN-"), ("checks", "CHK-"), ("assertions", "AST-")):
+            for item in specification.get(key, []):
+                if isinstance(item, dict) and isinstance(item.get("id"), str):
+                    found.append(item["id"])
+    acceptance = event.get("acceptance")
+    if isinstance(acceptance, dict):
+        for key, prefix in (("runs", "RUN-"), ("artifacts", "ART-")):
+            for item in acceptance.get(key, []):
+                if isinstance(item, dict) and isinstance(item.get("id"), str):
+                    found.append(item["id"])
+    return found
+
+
+def validate_history_numbering(event: dict[str, Any], comments: list[dict[str, Any]]) -> None:
+    """Validate new numeric IDs against the current Issue history.
+
+    Legacy semantic IDs remain readable. New numeric IDs must be unique and
+    greater than the latest numeric ID in the same scope.
+    """
+    history_events = [parsed for item in comments if (parsed := _event_from_comment(item))]
+    history_ids = [value for parsed in history_events for value in collect_numbered_ids(parsed)]
+    current_ids = collect_numbered_ids(event)
+    require(len(current_ids) == len(set(current_ids)), "同一事件内编号不能重复")
+    for value in current_ids:
+        if value in history_ids:
+            raise EventError(f"subject/对象 ID 已存在于 Issue 历史: {value}")
+
+    def numeric_key(value: str) -> tuple[str, int, int | None, int | None] | None:
+        if match := SPEC_NUMERIC_RE.fullmatch(value):
+            return ("SPEC", int(match.group(1)), None, None)
+        if match := IMP_NUMERIC_RE.fullmatch(value):
+            return ("IMP", int(match.group(1)), int(match.group(2)), None)
+        if match := ACC_TARGETED_NUMERIC_RE.fullmatch(value):
+            return ("ACC", int(match.group(1)), int(match.group(2)), int(match.group(3)))
+        if match := ACC_FULL_NUMERIC_RE.fullmatch(value):
+            return ("ACC-ALL", int(match.group(1)), None, None)
+        for prefix, pattern in (("SCN", r"^SCN-([0-9]{3})$"), ("CHK", r"^CHK-([0-9]{3})$"), ("AST", r"^AST-([0-9]{3})$"), ("RUN", r"^RUN-([0-9]{3})$"), ("ART", r"^ART-([0-9]{3})$")):
+            match = re.fullmatch(pattern, value)
+            if match:
+                return (prefix, int(match.group(1)), None, None)
+        return None
+
+    history_numeric = [(value, numeric_key(value)) for value in history_ids]
+    for value in current_ids:
+        key = numeric_key(value)
+        if key is None:
+            continue
+        kind, first, second, third = key
+        prior = []
+        for _, other in history_numeric:
+            if other is None or other[0] != kind:
+                continue
+            if kind == "IMP" and other[1] != first:
+                continue
+            if kind == "ACC" and other[1:3] != (first, second):
+                continue
+            prior.append(other)
+        if kind in {"SPEC", "SCN", "CHK", "AST", "RUN", "ART", "ACC-ALL"}:
+            require(not prior or first > max(item[1] for item in prior), f"{value} 未按历史序列递增")
+        elif kind == "IMP":
+            require(not prior or second > max(item[2] or 0 for item in prior), f"{value} 未按同一 SPEC 的实现轮次递增")
+        elif kind == "ACC":
+            require(not prior or third > max(item[3] or 0 for item in prior), f"{value} 未按同一 IMPLEMENTATION 的验收尝试递增")
 
 
 def validate_repository(value: Any, label: str) -> None:
@@ -628,6 +735,7 @@ def render_implementation(event: dict[str, Any]) -> str:
 
 - 状态：{implementation['status']}
 - 需求：{implementation['requirement_ref']}
+- 直接 SPEC：{implementation.get('spec_ref', '未声明（历史格式）')}
 - 规格：{', '.join(implementation['spec_refs']) or '无'}
 - 实现工作树：{implementation['repository']['worktree_root']}
 - Git 根目录：{implementation['repository']['git_toplevel']}
@@ -987,7 +1095,10 @@ def main() -> int:
             require(args.requirement_file is None, "--requirement-file 只用于 REQ 事件")
         if args.verify_git:
             verify_git_binding(event)
-        duplicate = info["event_id"] in existing_event_ids(load_comments(args.comments_json))
+        comments = load_comments(args.comments_json)
+        duplicate = info["event_id"] in existing_event_ids(comments)
+        if not duplicate:
+            validate_history_numbering(event, comments)
         ensure_output_not_legacy_drafts(args.output_dir)
         args.output_dir.mkdir(parents=True, exist_ok=True)
         output = args.output_dir / f"{info['event_id']}.md"

@@ -60,6 +60,14 @@ event:
 
 `REQ` 不携带 `subject_id` 或 `impact`；`SPEC` 不携带 `impact`；`IMPLEMENTATION` 和 `ACCEPTANCE` 必须携带 `impact`。同一 `event_id` 重复准备时脚本返回 `duplicate`；不同的 `IMP-*` 和 `ACC-*` 是独立事实，全部保留。
 
+### 新编号规则与历史兼容
+
+新建事件使用分层数字编号：`SPEC-001`、`SCN-001`、`CHK-001`、`AST-001`、`RUN-001`、`ART-001`；同一需求下的实现使用 `IMP-{spec_seq}-{implementation_round}`，例如 `IMP-001-01`，并在 `implementation.spec_ref` 保存直接关联的 `SPEC-001`。针对单个实现的验收使用 `ACC-{spec_seq}-{implementation_round}-{acceptance_attempt}`，例如 `ACC-001-01-01`；全量验收使用 `ACC-ALL-{attempt}`，例如 `ACC-ALL-01`。编号序列按对象作用域递增，验收重试不得复用旧 ACC 编号。
+
+`implementation.spec_refs` 仍只列出覆盖的 `SCN-*`、`CHK-*`、`AST-*`。`ACC` 的 `implementation_refs` 必须明确列出目标实现；编号只能辅助关联，不能替代机器字段。`RUN`、`ART` 是 ACCEPTANCE 执行证据，不属于 SPEC 定义内容。
+
+历史事件中的 `IMP-001`、`ACC-001` 及带语义后缀的 SCN/CHK/AST ID 继续可读取、可渲染、可引用；新事件按新规则严格校验。兼容读取不会把旧事件转换成新事件，也不会因历史格式放宽新事件的编号和关联检查。
+
 ## REQ：完整需求快照
 
 REQ 每次都保存发布时的完整需求，不保存相对上一条 REQ 的差异。下面是可作为事件文件起点的完整最小结构：

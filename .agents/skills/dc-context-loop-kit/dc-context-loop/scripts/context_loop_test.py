@@ -320,6 +320,148 @@ def implementation_plan_document() -> dict:
         },
     }
 class ContextLoopTest(unittest.TestCase):
+    def test_new_numeric_implementation_requires_direct_spec_ref(self) -> None:
+        document = implementation_event("EVT-IMP-NUMERIC", subject_id="IMP-001-01")
+        document["event"]["implementation"]["spec_ref"] = "SPEC-001"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            comments_file = root / "comments.json"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            comments_file.write_text(json.dumps([]), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--comments-json", str(comments_file), "--output-dir", str(output_dir)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_numeric_implementation_rejects_mismatched_spec_ref(self) -> None:
+        document = implementation_event("EVT-IMP-NUMERIC-BAD", subject_id="IMP-001-01")
+        document["event"]["implementation"]["spec_ref"] = "SPEC-002"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("大编号必须与 spec_ref 一致", result.stderr)
+
+    def test_legacy_implementation_remains_readable(self) -> None:
+        document = implementation_event("EVT-IMP-LEGACY", subject_id="IMP-001")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_targeted_numeric_acceptance_requires_matching_implementation(self) -> None:
+        document = acceptance_event("EVT-ACC-NUMERIC", subject_id="ACC-001-01-01")
+        document["event"]["acceptance"]["implementation_refs"] = ["IMP-001-02"]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("targeted ACC 编号必须与 implementation_refs 一致", result.stderr)
+
+    def test_numeric_implementation_round_must_increase_within_spec(self) -> None:
+        document = implementation_event("EVT-IMP-ROUND-02", subject_id="IMP-001-02")
+        document["event"]["implementation"]["spec_ref"] = "SPEC-001"
+        previous = implementation_event("EVT-IMP-ROUND-01", subject_id="IMP-001-01")
+        previous["event"]["implementation"]["spec_ref"] = "SPEC-001"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            comments_file = root / "comments.json"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            comments_file.write_text(json.dumps([comment("c1", "2026-08-26T10:00:00+09:00", previous)]), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--comments-json", str(comments_file), "--output-dir", str(output_dir)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_numeric_implementation_round_rejects_non_increasing_history(self) -> None:
+        document = implementation_event("EVT-IMP-ROUND-01-RETRY", subject_id="IMP-001-01")
+        document["event"]["implementation"]["spec_ref"] = "SPEC-001"
+        previous = implementation_event("EVT-IMP-ROUND-01", subject_id="IMP-001-01")
+        previous["event"]["implementation"]["spec_ref"] = "SPEC-001"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            comments_file = root / "comments.json"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            comments_file.write_text(json.dumps([comment("c1", "2026-08-26T10:00:00+09:00", previous)]), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--comments-json", str(comments_file), "--output-dir", str(output_dir)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("subject/对象 ID 已存在于 Issue 历史", result.stderr)
+
+    def test_full_numeric_acceptance_is_valid(self) -> None:
+        document = acceptance_event("EVT-ACC-ALL", subject_id="ACC-ALL-01", mode="full")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_numeric_spec_object_ids_require_three_digits_in_delta(self) -> None:
+        document = {
+            "document_type": "deep_crew_delivery_event",
+            "event": {
+                "event_id": "EVT-SPEC-DELTA-BAD-ID",
+                "created_at": "2026-08-26T10:00:00+09:00",
+                "author": "tester",
+                "node": "SPEC",
+                "subject_id": "SPEC-002",
+                "reason": "更新规格",
+                "specification": {
+                    "requirement_ref": "REQ-001",
+                    "base_spec_ref": "SPEC-001",
+                    "changes": {
+                        "added": {"scenarios": [], "checks": [], "assertions": []},
+                        "modified": {"scenarios": [{"id": "SCN-12", "title": "非法", "business_result": "非法", "given": ["前置"], "when": "执行", "then": [{"id": "THEN-001", "statement": "结果"}], "delivery_surfaces": ["unit"]}], "checks": [], "assertions": []},
+                        "removed": {"scenarios": [], "checks": [], "assertions": []},
+                    },
+                    "open_questions": [],
+                },
+            },
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("数字编号必须为三位", result.stderr)
     def test_operation_exec_injects_project_local_temp_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
