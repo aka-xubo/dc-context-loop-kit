@@ -8,10 +8,13 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 import yaml
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parents[4]
+PROOF_SCRIPT_DIR = SCRIPT_DIR.parent.parent / "dc-proof-resources" / "scripts"
 
 
 def require_operation_temp_environment() -> Path:
@@ -38,6 +41,7 @@ def requirement_event(event_id: str, *, requirement_id: str = "REQ-001", stateme
             "author": "tester",
             "node": "REQ",
             "reason": "整理当前完整需求",
+            "references": {"issue": "http://example/issues/1"},
             "requirement": {
                 "id": requirement_id,
                 "title": "登录失败反馈",
@@ -49,6 +53,44 @@ def requirement_event(event_id: str, *, requirement_id: str = "REQ-001", stateme
             },
         },
     }
+
+
+def canonical_requirement_event(event_id: str, **kwargs: Any) -> dict:
+    event = requirement_event(event_id, **kwargs)
+    requirement = event["event"]["requirement"]
+    requirement["issue_no"] = "HTW-1"
+    requirement["dependencies"] = []
+    return event
+
+
+def requirement_document(*, requirement_id: str = "REQ-001", issue_no: object = "HTW-1") -> dict:
+    return {
+        "document_type": "requirement",
+        "requirement": {
+            "id": requirement_id,
+            "status": "DRAFT",
+            "issue_no": issue_no,
+            "title": "登录失败反馈",
+            "statement": "用户能够理解登录失败原因",
+            "business_outcomes": ["用户能够判断下一步操作"],
+            "scope": {"included": ["Web 登录"], "excluded": ["账号注册"]},
+            "constraints": ["继续使用现有认证服务"],
+            "dependencies": [],
+            "open_questions": [],
+            "release_notes": "整理当前完整需求",
+            "source_refs": ["http://example/issues/1"],
+            "confirmation": None,
+        },
+    }
+
+
+def write_requirement(path: Path, document: dict) -> None:
+    machine = yaml.safe_dump(document, allow_unicode=True, sort_keys=False).rstrip()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"# 测试需求\n\n<!-- DELIVERY_PROOF_YAML_START -->\n```yaml\n{machine}\n```\n<!-- DELIVERY_PROOF_YAML_END -->\n",
+        encoding="utf-8",
+    )
 
 
 def comment(comment_id: str, created_at: str, document: dict) -> dict:
@@ -398,16 +440,19 @@ class ContextLoopTest(unittest.TestCase):
             self.assertTrue((other / "IMP-999-事件.yaml").exists())
 
     def test_prepare_event_rejects_legacy_drafts_output(self) -> None:
-        document = requirement_event("EVT-LEGACY-DRAFT-OUTPUT")
+        document = canonical_requirement_event("EVT-LEGACY-DRAFT-OUTPUT")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             event_file = root / "event.yaml"
+            requirement_file = root / "需求.md"
             output_dir = root / ".local" / "dc-loop" / "drafts" / "HTW-1"
             event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            write_requirement(requirement_file, requirement_document())
             result = subprocess.run(
                 [
                     sys.executable, str(SCRIPT_DIR / "prepare_event.py"),
-                    "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir),
+                    "--event-file", str(event_file), "--requirement-file", str(requirement_file),
+                    "--issue", "HTW-1", "--output-dir", str(output_dir),
                 ],
                 check=False, capture_output=True, text=True,
             )
@@ -415,138 +460,98 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("不得位于 .local/dc-loop/drafts", result.stderr)
             self.assertFalse(output_dir.exists())
 
-    def test_delivery_index_contains_only_issue_navigation(self) -> None:
+    def test_repository_has_no_issue_level_delivery_index_entrypoint(self) -> None:
+        self.assertFalse((SCRIPT_DIR / "delivery_index.py").exists())
+        references = [
+            SCRIPT_DIR.parent / "SKILL.md",
+            SCRIPT_DIR.parent.parent / "dc-proof-resources" / "references" / "workflow-contract.md",
+            SCRIPT_DIR.parent.parent / "dc-proof-resources" / "references" / "glossary.md",
+        ]
+        for path in references:
+            content = path.read_text(encoding="utf-8")
+            self.assertNotIn("delivery_index.py", content, str(path))
+            self.assertNotIn("docs/交付证明/<ISSUE-KEY>.md", content, str(path))
+
+    def test_catalog_uses_issue_no_and_keeps_only_markdown_project_index(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            req = requirement_event("EVT-HTW-1-REQ-001")
-            spec = specification_event("EVT-HTW-1-SPEC-001")
-            imp = implementation_event("EVT-HTW-1-IMP-001")
-            acc = acceptance_event("EVT-HTW-1-ACC-001")
-            comments = [
-                comment("c-req", "2026-08-26T10:00:00+09:00", req),
-                comment("c-spec", "2026-08-26T11:00:00+09:00", spec),
-                comment("c-imp", "2026-08-26T12:00:00+09:00", imp),
-                comment("c-acc", "2026-08-26T13:00:00+09:00", acc),
-            ]
-            comments_file = root / "comments.json"
-            output_file = root / "docs" / "交付证明" / "HTW-1.md"
-            comments_file.write_text(json.dumps({"comments": comments}, ensure_ascii=False), encoding="utf-8")
-            command = [sys.executable, str(SCRIPT_DIR / "delivery_index.py"), "--issue-key", "HTW-1", "--issue-url", "http://example/issues/1", "--comments-json", str(comments_file), "--output-file", str(output_file), "--coverage", "FULL", "--synced-at", "2026-08-26T14:00:00+00:00"]
-            result = subprocess.run(command, check=False, capture_output=True, text=True)
+            root = Path(temporary) / "交付证明"
+            write_requirement(root / "REQ-001" / "需求.md", requirement_document())
+            (root / "需求清单.html").write_text("obsolete", encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(PROOF_SCRIPT_DIR / "render_delivery_review.py"), str(root)],
+                check=False, capture_output=True, text=True,
+            )
             self.assertEqual(result.returncode, 0, result.stderr)
-            content = output_file.read_text(encoding="utf-8")
-            self.assertIn("## SPEC（1）", content)
-            self.assertIn("## IMPLEMENTATION（1）", content)
-            self.assertIn("## ACCEPTANCE（1）", content)
-            self.assertIn("comment `c-acc`", content)
-            self.assertNotIn("DEEP_CREW_EVENT_START", content)
-            self.assertNotIn("AST-001", content)
-            checked = subprocess.run(command + ["--check"], check=False, capture_output=True, text=True)
-            self.assertEqual(checked.returncode, 0, checked.stderr)
+            catalog = (root / "需求清单.md").read_text(encoding="utf-8")
+            self.assertIn("| REQ | Issue No | 需求状态 | 交付阶段 | 标题 |", catalog)
+            self.assertIn("| [REQ-001](./REQ-001/审核工作台.html) | HTW-1 |", catalog)
+            self.assertFalse((root / "需求清单.html").exists())
+            workbench = (root / "REQ-001" / "审核工作台.html").read_text(encoding="utf-8")
+            self.assertIn('href="../需求清单.md"', workbench)
+            self.assertNotIn("需求清单.html", workbench)
 
-    def test_delivery_index_archives_explicit_legacy_paths(self) -> None:
+    def test_requirement_validation_rejects_missing_or_invalid_issue_no(self) -> None:
+        for issue_no in (None, "htw-1", ["HTW-1", "HTW-2"]):
+            with self.subTest(issue_no=issue_no), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "交付证明"
+                document = requirement_document(issue_no=issue_no)
+                if issue_no is None:
+                    del document["requirement"]["issue_no"]
+                write_requirement(root / "REQ-001" / "需求.md", document)
+                result = subprocess.run(
+                    [sys.executable, str(PROOF_SCRIPT_DIR / "validate_delivery_proof.py"), str(root)],
+                    check=False, capture_output=True, text=True,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("REQ-001", result.stderr)
+                self.assertIn("issue_no", result.stderr)
+
+    def test_prepare_req_event_requires_draft_business_content_match(self) -> None:
+        document = canonical_requirement_event("EVT-REQ-CONSISTENT")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            proof = root / "docs" / "交付证明"
-            legacy_req = proof / "REQ-OLD"
-            legacy_req.mkdir(parents=True)
-            (legacy_req / "验收报告.md").write_text("legacy", encoding="utf-8")
-            legacy_catalog = proof / "需求清单.md"
-            legacy_catalog.write_text("legacy catalog", encoding="utf-8")
-            comments_file = root / "comments.json"
-            comments_file.write_text(json.dumps({"comments": [comment("c1", "2026-08-26T10:00:00+09:00", requirement_event("EVT-HTW-1-REQ-001"))]}, ensure_ascii=False), encoding="utf-8")
-            output = proof / "HTW-1.md"
-            command = [
-                sys.executable, str(SCRIPT_DIR / "delivery_index.py"),
-                "--issue-key", "HTW-1", "--issue-url", "http://example/issues/1",
-                "--comments-json", str(comments_file), "--output-file", str(output),
-                "--coverage", "FULL", "--synced-at", "2026-08-26T14:00:00+00:00",
-                "--worktree-root", str(root), "--legacy-path", str(legacy_req),
-                "--legacy-path", str(legacy_catalog),
-            ]
-            result = subprocess.run(command, check=False, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual([path.name for path in proof.iterdir()], ["HTW-1.md"])
-            archive = root / ".local" / "dc-loop" / "archive" / "HTW-1"
-            self.assertEqual((archive / "REQ-OLD" / "验收报告.md").read_text(encoding="utf-8"), "legacy")
-            self.assertEqual((archive / "需求清单.md").read_text(encoding="utf-8"), "legacy catalog")
-
-    def test_delivery_index_check_rejects_remaining_legacy_path(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            proof = root / "docs" / "交付证明"
-            proof.mkdir(parents=True)
-            legacy = proof / "REQ-OLD"
-            legacy.mkdir()
-            comments_file = root / "comments.json"
-            document = requirement_event("EVT-HTW-1-REQ-001")
-            comments_file.write_text(json.dumps({"comments": [comment("c1", "2026-08-26T10:00:00+09:00", document)]}, ensure_ascii=False), encoding="utf-8")
-            output = proof / "HTW-1.md"
-            base = [sys.executable, str(SCRIPT_DIR / "delivery_index.py"), "--issue-key", "HTW-1", "--issue-url", "http://example/issues/1", "--comments-json", str(comments_file), "--output-file", str(output), "--coverage", "FULL", "--synced-at", "2026-08-26T14:00:00+00:00"]
-            self.assertEqual(subprocess.run(base, check=False).returncode, 0)
-            checked = subprocess.run(base + ["--check", "--worktree-root", str(root), "--legacy-path", str(legacy)], check=False, capture_output=True, text=True)
-            self.assertNotEqual(checked.returncode, 0)
-            self.assertIn("旧交付路径仍存在", checked.stderr)
-
-    def test_delivery_index_rejects_symlink_and_nested_legacy_paths_before_moving(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            proof = root / "docs" / "交付证明"
-            legacy = proof / "REQ-OLD"
-            nested = legacy / "artifacts"
-            nested.mkdir(parents=True)
-            link = proof / "REQ-LINK"
-            link.symlink_to(legacy, target_is_directory=True)
-            comments_file = root / "comments.json"
-            comments_file.write_text(json.dumps({"comments": [comment("c1", "2026-08-26T10:00:00+09:00", requirement_event("EVT-HTW-1-REQ-001"))]}, ensure_ascii=False), encoding="utf-8")
-            base = [
-                sys.executable, str(SCRIPT_DIR / "delivery_index.py"),
-                "--issue-key", "HTW-1", "--issue-url", "http://example/issues/1",
-                "--comments-json", str(comments_file), "--output-file", str(proof / "HTW-1.md"),
-                "--coverage", "FULL", "--worktree-root", str(root),
-            ]
-            symlink_result = subprocess.run(base + ["--legacy-path", str(link)], check=False, capture_output=True, text=True)
-            self.assertNotEqual(symlink_result.returncode, 0)
-            self.assertIn("符号链接", symlink_result.stderr)
-            nested_result = subprocess.run(base + ["--legacy-path", str(nested), "--legacy-path", str(legacy)], check=False, capture_output=True, text=True)
-            self.assertNotEqual(nested_result.returncode, 0)
-            self.assertIn("相互嵌套", nested_result.stderr)
-            self.assertTrue(legacy.is_dir())
-            self.assertTrue(link.is_symlink())
-
-    def test_delivery_index_rejects_archiving_current_index(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            proof = root / "docs" / "交付证明"
-            proof.mkdir(parents=True)
-            output = proof / "HTW-1.md"
-            output.write_text("existing", encoding="utf-8")
-            comments_file = root / "comments.json"
-            comments_file.write_text(json.dumps({"comments": [comment("c1", "2026-08-26T10:00:00+09:00", requirement_event("EVT-HTW-1-REQ-001"))]}, ensure_ascii=False), encoding="utf-8")
+            event_file = root / "event.yaml"
+            requirement_file = root / "需求.md"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            write_requirement(requirement_file, requirement_document())
             result = subprocess.run(
                 [
-                    sys.executable, str(SCRIPT_DIR / "delivery_index.py"),
-                    "--issue-key", "HTW-1", "--issue-url", "http://example/issues/1",
-                    "--comments-json", str(comments_file), "--output-file", str(output),
-                    "--coverage", "FULL", "--worktree-root", str(root), "--legacy-path", str(output),
+                    sys.executable, str(SCRIPT_DIR / "prepare_event.py"),
+                    "--event-file", str(event_file), "--requirement-file", str(requirement_file),
+                    "--issue", "HTW-1", "--output-dir", str(root / "out"),
                 ],
                 check=False, capture_output=True, text=True,
             )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("当前索引", result.stderr)
-            self.assertEqual(output.read_text(encoding="utf-8"), "existing")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            content = (root / "out" / "EVT-REQ-CONSISTENT.md").read_text(encoding="utf-8")
+            for heading in ("## Issue No", "## 业务结果", "## 约束", "## 依赖", "## 未决事项", "## 发布说明"):
+                self.assertIn(heading, content)
 
-    def test_delivery_index_rejects_incomplete_sync(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            comments_file = root / "comments.json"
-            comments_file.write_text("[]", encoding="utf-8")
-            result = subprocess.run(
-                [sys.executable, str(SCRIPT_DIR / "delivery_index.py"), "--issue-key", "HTW-1", "--issue-url", "http://example/issues/1", "--comments-json", str(comments_file), "--output-file", str(root / "index.md")],
-                check=False, capture_output=True, text=True,
-            )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("coverage: FULL", result.stderr)
+    def test_prepare_req_event_reports_each_drift_field(self) -> None:
+        for field, changed in (
+            ("title", "被篡改的标题"),
+            ("business_outcomes", ["被篡改的业务结果"]),
+            ("dependencies", [{"id": "DEP-001", "description": "被篡改的依赖", "related_requirement_id": None}]),
+        ):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                document = canonical_requirement_event(f"EVT-REQ-DRIFT-{field.upper()}")
+                document["event"]["requirement"][field] = changed
+                event_file = root / "event.yaml"
+                requirement_file = root / "需求.md"
+                event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+                write_requirement(requirement_file, requirement_document())
+                result = subprocess.run(
+                    [
+                        sys.executable, str(SCRIPT_DIR / "prepare_event.py"),
+                        "--event-file", str(event_file), "--requirement-file", str(requirement_file),
+                        "--issue", "HTW-1", "--output-dir", str(root / "out"),
+                    ],
+                    check=False, capture_output=True, text=True,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"requirement.{field}", result.stderr)
+                self.assertFalse((root / "out").exists())
 
     def test_preflight_accepts_spec_event_as_matrix_source(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -694,16 +699,18 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("event 存在未定义字段: legacy", result.stderr)
 
     def test_prepare_event_detects_duplicate(self) -> None:
-        document = requirement_event("EVT-001")
+        document = canonical_requirement_event("EVT-001")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             event_file = root / "event.yaml"
             comments_file = root / "comments.json"
+            requirement_file = root / "需求.md"
             output_dir = root / "out"
             event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            write_requirement(requirement_file, requirement_document())
             comments_file.write_text(json.dumps({"comments": [comment("c1", "2026-08-26T10:00:00+09:00", document)]}, ensure_ascii=False), encoding="utf-8")
             result = subprocess.run(
-                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--comments-json", str(comments_file), "--output-dir", str(output_dir)],
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--requirement-file", str(requirement_file), "--issue", "HTW-1", "--comments-json", str(comments_file), "--output-dir", str(output_dir)],
                 check=False,
                 capture_output=True,
                 text=True,
@@ -712,16 +719,18 @@ class ContextLoopTest(unittest.TestCase):
             self.assertTrue(json.loads(result.stdout)["duplicate"])
 
     def test_prepare_event_detects_duplicate_from_attachment_summary(self) -> None:
-        document = requirement_event("EVT-ATTACHMENT-DUPLICATE")
+        document = canonical_requirement_event("EVT-ATTACHMENT-DUPLICATE")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             event_file = root / "event.yaml"
             comments_file = root / "comments.json"
+            requirement_file = root / "需求.md"
             output_dir = root / "out"
             event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            write_requirement(requirement_file, requirement_document())
             comments_file.write_text(json.dumps({"comments": [{"id": "c1", "content": "## 机器事件附件\n\n- event_id：`EVT-ATTACHMENT-DUPLICATE`\n- YAML 附件：`REQ-001-事件.yaml`"}]}, ensure_ascii=False), encoding="utf-8")
             result = subprocess.run(
-                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--comments-json", str(comments_file), "--output-dir", str(output_dir)],
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--requirement-file", str(requirement_file), "--issue", "HTW-1", "--comments-json", str(comments_file), "--output-dir", str(output_dir)],
                 check=False,
                 capture_output=True,
                 text=True,
@@ -730,21 +739,23 @@ class ContextLoopTest(unittest.TestCase):
             self.assertTrue(json.loads(result.stdout)["duplicate"])
 
     def test_initial_req_renders_structured_human_sections(self) -> None:
-        document = requirement_event("EVT-REQ-001")
+        document = canonical_requirement_event("EVT-REQ-001")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             event_file = root / "event.yaml"
+            requirement_file = root / "需求.md"
             output_dir = root / "out"
             event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            write_requirement(requirement_file, requirement_document())
             result = subprocess.run(
-                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--requirement-file", str(requirement_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
                 check=False,
                 capture_output=True,
                 text=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             content = (output_dir / "EVT-REQ-001.md").read_text(encoding="utf-8")
-            for heading in ("## 需求目标", "## 需求陈述", "## 业务结果", "### 范围内", "### 范围外", "## 约束与依赖", "## 未决事项", "## 发布说明"):
+            for heading in ("## 需求目标", "## 需求陈述", "## Issue No", "## 业务结果", "### 范围内", "### 范围外", "## 约束", "## 依赖", "## 未决事项", "## 发布说明"):
                 self.assertIn(heading, content)
             self.assertNotIn("DEEP_CREW_EVENT_START", content)
             self.assertIn("EVT-REQ-001", content)

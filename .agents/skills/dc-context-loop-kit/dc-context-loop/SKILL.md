@@ -139,7 +139,7 @@ REQ 事件保存发布时的完整快照。SPEC 事件可以保存完整快照�
 
 ### REQ 当前完整定义
 
-每条 REQ 事件都必须一次提供完整 `requirement`：`id`、`title`、`statement`、`business_outcomes`、`scope.included`、`scope.excluded`、`constraints`、`open_questions`。人类区展示完整需求和本次发布说明。REQ 只表达业务目标、范围和约束，不直接修改 SPEC、代码或验收结论。
+每条 REQ 事件都必须一次提供完整 `requirement`：`id`、`issue_no`、`title`、`statement`、`business_outcomes`、`scope.included`、`scope.excluded`、`constraints`、`dependencies`、`open_questions`。发布前必须用已确认的需求草案逐字段比较这些业务字段，并将草案 `release_notes` 与事件 `reason` 比较；漂移时失败并定位字段。人类区展示完整需求和本次发布说明。REQ 只表达业务目标、范围和约束，不直接修改 SPEC、代码或验收结论。
 
 ### SPEC 当前完整定义
 
@@ -192,11 +192,13 @@ event:
   reason: "根据当前讨论整理完整需求"
   requirement:
     id: REQ-001
+    issue_no: HTW-000
     title: 登录失败反馈
     statement: 用户能够理解登录失败原因
     business_outcomes: [用户能够判断下一步操作]
     scope: {included: [Web 登录], excluded: [账号注册]}
     constraints: [继续使用现有认证服务]
+    dependencies: []
     open_questions: []
 ```
 
@@ -254,6 +256,8 @@ python3 <skill-dir>/scripts/prepare_event.py \
   --output-dir <operation-workspace>
 ```
 
+REQ 事件发布时额外提供 `--requirement-file <需求.md>` 作为草案一致性门禁；其他节点不得提供。REQ 草案与事件的业务字段或发布说明存在差异时，脚本必须在生成评论和附件前失败。
+
 `--output-dir` 只能使用本次操作工作区。工作区必须先由目标 IMPLEMENTATION
 事件的 `repository.worktree_root` 派生：
 
@@ -265,8 +269,7 @@ python3 <skill-dir>/scripts/prepare_event.py \
 
 `prepare_event.py --output-dir` 不得指向 `.local/dc-loop/drafts` 或其子目录；事件评论和 YAML 附件只能在本次 operation workspace 中生成。升级前遗留的事件 YAML 通过 `scripts/event_artifact_cleanup.py cleanup_legacy_drafts --worktree-root <repository.worktree_root> --issue-key <ISSUE-KEY>` 按明确 Issue 范围清理；该命令只删除 `REQ|SPEC|IMP|ACC-*-事件.yaml`，保留同目录 Markdown 草案和其他 Issue 材料。清理完成后仍按操作工作区终态规则处理本次临时目录。
 
-本地交付证明不是阶段副本。完整 intake 且 ACC 结论落地后，使用
-`scripts/delivery_index.py` 刷新 `docs/交付证明/<ISSUE-KEY>.md`；该文件只保存 Issue 导航和同步元数据，不纳入 Git。存在同一 Issue 的旧阶段目录或派生清单时，通过重复的 `--legacy-path` 显式指定，并同时提供 `--worktree-root`；工具只允许归档 `docs/交付证明` 下的明确路径，将其移入 `.local/dc-loop/archive/<ISSUE-KEY>/`，拒绝越界、符号链接和覆盖。检查模式发现任一指定旧路径仍存在时失败。SPEC/IMP 发布期间不刷新最终索引，索引一致性检查必须比较事件编号、event_id、评论 UUID、分类、计数、最后评论 ID 和覆盖状态。
+本地交付证明不再维护 Issue 级索引文件。项目级 `需求清单.md` 由各 REQ 目录派生，并直接展示结构化 `issue_no`；Issue 评论时间线仍是交付事件事实源。SPEC/IMP 发布期间不刷新额外索引。
 
 脚本会生成一份人类可读评论和同名机器 YAML 附件，并返回 `duplicate`。REQ 使用完整快照；SPEC 使用完整快照或 `base_spec_ref + changes` 增量；IMPLEMENTATION/ACCEPTANCE 使用独立完成事实。脚本只校验和渲染，不读取历史、不合并增量、不自动路由。相同 `event_id` 已存在时跳过重复发布；不同的 `IMP-*` 或 `ACC-*` 应保留为新的时间线记录。
 

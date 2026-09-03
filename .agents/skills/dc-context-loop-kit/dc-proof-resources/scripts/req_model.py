@@ -16,6 +16,7 @@ import yaml
 START_MARKER = "<!-- DELIVERY_PROOF_YAML_START -->"
 END_MARKER = "<!-- DELIVERY_PROOF_YAML_END -->"
 REQ_RE = re.compile(r"^REQ-[A-Za-z0-9_-]+$")
+ISSUE_NO_RE = re.compile(r"^[A-Z][A-Z0-9]*-[1-9][0-9]*$")
 SCN_RE = re.compile(r"^SCN-[A-Za-z0-9_-]+$")
 CHK_RE = re.compile(r"^CHK-[A-Za-z0-9_-]+$")
 DEP_RE = re.compile(r"^DEP-[A-Za-z0-9_-]+$")
@@ -80,7 +81,7 @@ def requirement_digest(requirement: dict[str, Any]) -> str:
     payload = {
         key: value
         for key, value in requirement.items()
-        if key != "confirmation"
+        if key not in {"confirmation", "issue_no"}
     }
     canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -111,5 +112,7 @@ def discover_current_requirement_documents(root: Path) -> dict[str, Path]:
         for path in sorted(root.glob("REQ-*/需求.md"))
         if path.parent.name.startswith("REQ-")
     }
+
+
 def html_escape(value: Any) -> str:
     return html.escape(str(value), quote=True)

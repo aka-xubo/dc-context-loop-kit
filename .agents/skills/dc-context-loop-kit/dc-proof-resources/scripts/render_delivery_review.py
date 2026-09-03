@@ -292,36 +292,17 @@ def render_catalog_markdown(project: Project) -> str:
         "",
         "本文件由各 REQ 根目录当前定义自动派生，不保存独立版本或上线裁决。",
         "",
-        "| REQ | 需求状态 | 交付阶段 | 标题 |",
-        "|---|---|---|---|",
+        "| REQ | Issue No | 需求状态 | 交付阶段 | 标题 |",
+        "|---|---|---|---|---|",
     ]
     for row in current_rows(project):
         requirement = row["requirement"]
         lines.append(
-            f"| [{row['id']}](./{row['id']}/审核工作台.html) | {requirement.get('status')} | "
+            f"| [{row['id']}](./{row['id']}/审核工作台.html) | {requirement.get('issue_no')} | {requirement.get('status')} | "
             f"{row['stage']} | {requirement.get('title')} |"
         )
     lines.append("")
     return "\n".join(lines)
-
-
-def render_catalog_html(project: Project, digest: str) -> str:
-    rows = current_rows(project)
-    confirmed = sum(row["requirement"].get("status") == "CONFIRMED" for row in rows)
-    satisfied = sum(row["stage"] == "已验收" for row in rows)
-    drafts = sum(row["requirement"].get("status") == "DRAFT" for row in rows)
-    table_rows = "".join(
-        f'''<tr><td class="mono"><a href="{html_escape(row['id'])}/审核工作台.html">{html_escape(row['id'])}</a></td>
-        <td>{badge(row['requirement'].get('status'), 'warn' if row['requirement'].get('status') == 'DRAFT' else 'ok')}</td>
-        <td>{badge(row['stage'], row['kind'])}</td>
-        <td><strong>{html_escape(row['requirement'].get('title'))}</strong><div class="muted-text">{html_escape(row['requirement'].get('business_value'))}</div></td></tr>'''
-        for row in rows
-    )
-    body = f'''<header><div class="top"><div class="eyebrow">Delivery Proof · REQ 顶层视图</div><h1>需求清单</h1><p class="sub">清单由各 REQ 的当前完整定义派生；Issue 评论时间线保存历史。</p></div></header>
-    <main><nav><a href="需求清单.md">查看派生 Markdown</a></nav>
-    <section><div class="metrics"><div class="metric"><strong>{len(rows)}</strong><span>REQ 总数</span></div><div class="metric"><strong>{confirmed}</strong><span>需求已确认</span></div><div class="metric"><strong>{drafts}</strong><span>需求待确认</span></div><div class="metric"><strong>{satisfied}</strong><span>已验收</span></div></div></section>
-    <section><h2>独立需求</h2><table><colgroup><col style="width:260px"><col style="width:120px"><col style="width:145px"><col></colgroup><thead><tr><th>REQ</th><th>需求状态</th><th>交付阶段</th><th>标题与价值</th></tr></thead><tbody>{table_rows}</tbody></table></section></main>'''
-    return html_page("需求清单", body, digest)
 
 
 def list_html(values: list[Any]) -> str:
@@ -747,8 +728,9 @@ def render_workbench(project: Project, requirement_id: str, digest: str) -> str:
     gate_kind = "ok" if gate_status == "CONFIRMED" else "warn" if gate_status == "PENDING" else "muted"
     gate_categories = ", ".join(map(str, as_list(human_gate.get("risk_categories")))) or "无"
     implementation_slices = list_html([f"{as_dict(item).get('id')} · {as_dict(item).get('title')} · {as_dict(item).get('status')}" for item in as_list(plan.get("slices"))])
-    body = f'''<header><div class="top"><div class="eyebrow">REQ 审核工作台</div><h1>{html_escape(requirement.get('title'))}</h1><p>REQ：<span class="mono">{html_escape(requirement_id)}</span> · REQ 状态：{badge(requirement.get('status'), 'warn' if requirement.get('status') == 'DRAFT' else 'ok')} · 交付状态：{badge(stage, stage_kind)}</p><p class="sub">{html_escape(requirement.get('business_value'))}</p></div></header>
-    <main><nav><a href="../需求清单.html">返回需求清单</a><a href="需求.md">查看需求定义文件</a></nav>
+    outcome_summary = "；".join(map(str, as_list(requirement.get("business_outcomes")))) or str(requirement.get("business_value", ""))
+    body = f'''<header><div class="top"><div class="eyebrow">REQ 审核工作台</div><h1>{html_escape(requirement.get('title'))}</h1><p>REQ：<span class="mono">{html_escape(requirement_id)}</span> · Issue No：<span class="mono">{html_escape(requirement.get('issue_no'))}</span> · REQ 状态：{badge(requirement.get('status'), 'warn' if requirement.get('status') == 'DRAFT' else 'ok')} · 交付状态：{badge(stage, stage_kind)}</p><p class="sub">{html_escape(outcome_summary)}</p></div></header>
+    <main><nav><a href="../需求清单.md">返回需求清单</a><a href="需求.md">查看需求定义文件</a></nav>
     <section><h2>当前结论</h2><div class="metrics"><div class="metric"><strong>{len(scenarios)}</strong><span>SCN</span></div><div class="metric"><strong>{len(checks)}</strong><span>CHK</span></div><div class="metric"><strong>{len(eligible_runs)}/{len(runs)}</strong><span>PASSED 正式 RUN / ��轮 RUN</span></div></div><div class="{'okline' if report_status == 'SATISFIED' else 'notice'}">验收报告：{badge(report_status, report_kind)}{conclusion_detail}</div></section>
     <section><h2>需求定义</h2><p class="statement">{html_escape(requirement.get('statement'))}</p><div class="split"><div><h3>纳入范围</h3>{list_html(as_list(as_dict(requirement.get('scope')).get('included')))}</div><div><h3>排除范围</h3>{list_html(as_list(as_dict(requirement.get('scope')).get('excluded')))}</div></div></section>
     <section><h2>业务依赖与证明</h2><div class="records">{dependency_rows}</div><p>被其他 REQ 关联：{html_escape(', '.join(dependents) or '无')}</p></section>
@@ -766,7 +748,6 @@ def expected_outputs(root: Path) -> dict[Path, str]:
     digest = project_digest(project)
     outputs = {
         root / "需求清单.md": render_catalog_markdown(project),
-        root / "需求清单.html": render_catalog_html(project, digest),
     }
     for requirement_id in project.requirements:
         outputs[root / requirement_id / "审核工作台.html"] = render_workbench(project, requirement_id, digest)
@@ -789,17 +770,22 @@ def atomic_write(path: Path, content: str) -> None:
 def run(root: Path, check: bool) -> int:
     root = root.parent if root.is_file() else root
     outputs = expected_outputs(root)
+    obsolete_catalog = root / "需求清单.html"
     if check:
         stale = [path for path, content in outputs.items() if not path.exists() or path.read_text(encoding="utf-8") != content]
+        if obsolete_catalog.exists():
+            stale.append(obsolete_catalog)
         if stale:
             for path in stale:
                 print(f"审核页不是最新派生视图: {path}", file=sys.stderr)
             return 1
         print(f"审核视图与 REQ 真值源一致: {len(outputs)} 个文件")
         return 0
+    if obsolete_catalog.exists():
+        obsolete_catalog.unlink()
     for path, content in outputs.items():
         atomic_write(path, content)
-    print(f"已生成 REQ 派生清单与桌面审核页: {len(outputs)} 个文件")
+    print(f"已生成 Markdown 需求清单与 REQ 审核工作台: {len(outputs)} 个文件")
     return 0
 
 

@@ -38,7 +38,7 @@ REQ 确认前，使用分轮次的需求追问把业务结果、边界和验收�
 
 ## 收敛与确认
 
-当没有未决的业务决策，生成一份完整的当前 REQ 快照，确保 `statement`、`business_value`、`scope`、`dependencies` 和 `source_refs` 能反映共同理解。未解决的问题留在当前对话中，不向需求 YAML 添加未定义字段。
+当没有未决的业务决策，生成一份完整的当前 REQ 快照，确保 `issue_no`、`statement`、`business_outcomes`、`scope`、`constraints`、`dependencies` 和 `open_questions` 能反映共同理解；发布说明写入 `release_notes`。未解决的问题留在当前对话中，不向需求 YAML 添加未定义字段。
 
 最后明确展示：REQ 摘要、纳入/排除范围、依赖、仍存在的风险和下一步门禁。只有用户明确确认后，才能写入既有 `confirmation` 并将 REQ 置为 `CONFIRMED`；Agent 不得代替用户确认。
 

@@ -36,3 +36,7 @@ dependencies:
 没有业务依赖时使用 `dependencies: []`。不要为了复用代码、表、模块或服务接口而创建 DEP；这些属于实现计划或验证环境配置。
 
 依赖描述属于当前 REQ 定义。新增、删除或改变依赖事实时，按当前 REQ 的语义变化处理；只改变可选关联 REQ 且依赖事实和验证责任不变时，不改变验收契约。
+
+## 草案与发布
+
+需求草案使用统一 REQ 模型，至少包含 `issue_no`、`title`、`statement`、`business_outcomes`、`scope`、`constraints`、`dependencies`、`open_questions` 和 `release_notes`。负责人确认后，REQ 事件必须复用相同业务字段，事件 `reason` 必须等于草案 `release_notes`；调用 `prepare_event.py` 时通过 `--requirement-file` 执行逐字段漂移校验。草案状态、确认信息以及事件 ID、时间、作者、附件地址等技术元数据不参与比较。

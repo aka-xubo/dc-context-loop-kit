@@ -16,6 +16,7 @@ from req_model import (
     AST_RE,
     CHK_RE,
     DEP_RE,
+    ISSUE_NO_RE,
     REQ_RE,
     RUN_RE,
     SCN_RE,
@@ -351,13 +352,27 @@ def load_project(root: Path) -> Project:
 def validate_requirement(project: Project, requirement_id: str, document: dict[str, Any], path: Path) -> None:
     v = project.validation
     requirement = as_dict(document.get("requirement"))
-    allowed_keys = {"id", "status", "title", "statement", "business_value", "scope", "dependencies", "source_refs", "confirmation"}
-    v.require(set(requirement) == allowed_keys, path, "requirement 包含缺失或未定义字段")
+    common_keys = {"id", "status", "issue_no", "title", "statement", "scope", "dependencies", "source_refs", "confirmation"}
+    legacy_keys = common_keys | {"business_value"}
+    canonical_keys = common_keys | {"business_outcomes", "constraints", "open_questions", "release_notes"}
+    v.require(set(requirement) in {frozenset(legacy_keys), frozenset(canonical_keys)}, path, "requirement 必须使用完整旧模型或统一 REQ ��型，不能混用或缺字段")
     v.require(REQ_RE.fullmatch(str(requirement.get("id", ""))) is not None, path, "requirement.id 格式非法")
     v.require(requirement.get("id") == requirement_id, path, "requirement.id 与目录不一致")
     v.require(requirement.get("status") in {"DRAFT", "CONFIRMED", "SATISFIED"}, path, "requirement.status 只允许 DRAFT/CONFIRMED/SATISFIED")
-    for key in ("title", "statement", "business_value"):
+    v.require(isinstance(requirement.get("issue_no"), str) and ISSUE_NO_RE.fullmatch(requirement["issue_no"]) is not None, path, f"{requirement_id} 的 requirement.issue_no 缺失或格式非法")
+    for key in ("title", "statement"):
         v.require(is_nonempty(requirement.get(key)), path, f"requirement.{key} 不能为空")
+    if set(requirement) == canonical_keys:
+        v.require(is_nonempty(requirement.get("release_notes")), path, "requirement.release_notes 不能为空")
+        outcomes = requirement.get("business_outcomes")
+        v.require(isinstance(outcomes, list) and bool(outcomes), path, "requirement.business_outcomes 必须是非空数组")
+        v.require(all(is_nonempty(item) for item in as_list(outcomes)), path, "requirement.business_outcomes 不能包含空值")
+        v.require(isinstance(requirement.get("constraints"), list), path, "requirement.constraints 必须是数组")
+        v.require(all(is_nonempty(item) for item in as_list(requirement.get("constraints"))), path, "requirement.constraints 不能包含空值")
+        v.require(isinstance(requirement.get("open_questions"), list), path, "requirement.open_questions 必须是数组")
+        v.require(all(is_nonempty(item) for item in as_list(requirement.get("open_questions"))), path, "requirement.open_questions 不能包含空值")
+    else:
+        v.require(is_nonempty(requirement.get("business_value")), path, "requirement.business_value 不能为空")
     scope = as_dict(requirement.get("scope"))
     v.require(isinstance(scope.get("included"), list), path, "requirement.scope.included 必须是数组")
     v.require(isinstance(scope.get("excluded"), list), path, "requirement.scope.excluded 必须是数组")

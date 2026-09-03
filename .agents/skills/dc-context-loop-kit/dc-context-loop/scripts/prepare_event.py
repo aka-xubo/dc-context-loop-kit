@@ -15,10 +15,16 @@ BLOCK_RE = re.compile(
     r"<!-- DEEP_CREW_EVENT_START -->\s*```yaml\s*(.*?)\s*```\s*<!-- DEEP_CREW_EVENT_END -->",
     re.DOTALL,
 )
+DELIVERY_PROOF_BLOCK_RE = re.compile(
+    r"<!-- DELIVERY_PROOF_YAML_START -->\s*```yaml\s*(.*?)\s*```\s*<!-- DELIVERY_PROOF_YAML_END -->",
+    re.DOTALL,
+)
 EVENT_ID_RE = re.compile(r"^EVT-[A-Za-z0-9_-]+$")
 EVENT_ID_TEXT_RE = re.compile(r"event_id：`(EVT-[A-Za-z0-9_-]+)`")
 SUBJECT_ID_RE = re.compile(r"^(SPEC|IMP|ACC)-[A-Za-z0-9_-]+$")
 REQ_ID_RE = re.compile(r"^REQ-[A-Za-z0-9_-]+$")
+ISSUE_NO_RE = re.compile(r"^[A-Z][A-Z0-9]*-[1-9][0-9]*$")
+DEP_ID_RE = re.compile(r"^DEP-[A-Za-z0-9_-]+$")
 SCN_ID_RE = re.compile(r"^SCN-[A-Za-z0-9_-]+$")
 CHK_ID_RE = re.compile(r"^CHK-[A-Za-z0-9_-]+$")
 AST_ID_RE = re.compile(r"^AST-[A-Za-z0-9_-]+$")
@@ -73,9 +79,14 @@ def string_list(value: Any, label: str, *, nonempty_items: bool = True) -> list[
 
 def validate_requirement(requirement: Any) -> None:
     require(isinstance(requirement, dict), "REQ 缺少完整 requirement")
-    for field in ("id", "title", "statement", "business_outcomes", "scope", "constraints", "open_questions"):
+    common_fields = {"id", "title", "statement", "business_outcomes", "scope", "constraints", "open_questions"}
+    canonical_fields = common_fields | {"issue_no", "dependencies"}
+    require(set(requirement) in {frozenset(common_fields), frozenset(canonical_fields)}, "requirement 必须使用完整历史结构或统一 REQ 结构，不能混用或缺字段")
+    for field in common_fields:
         require(field in requirement, f"requirement 缺少字段: {field}")
     require(isinstance(requirement["id"], str) and REQ_ID_RE.fullmatch(requirement["id"]), "requirement.id 必须为 REQ-*")
+    if set(requirement) == canonical_fields:
+        require(isinstance(requirement["issue_no"], str) and ISSUE_NO_RE.fullmatch(requirement["issue_no"]), "requirement.issue_no 格式非法")
     nonempty(requirement["title"], "requirement.title")
     nonempty(requirement["statement"], "requirement.statement")
     outcomes = string_list(requirement["business_outcomes"], "requirement.business_outcomes")
@@ -85,7 +96,80 @@ def validate_requirement(requirement: Any) -> None:
     string_list(scope.get("included"), "requirement.scope.included")
     string_list(scope.get("excluded"), "requirement.scope.excluded")
     string_list(requirement["constraints"], "requirement.constraints")
+    dependencies = requirement.get("dependencies", [])
+    require(isinstance(dependencies, list), "requirement.dependencies 必须是数组")
+    dependency_ids: set[str] = set()
+    for index, dependency in enumerate(dependencies):
+        require(isinstance(dependency, dict), f"requirement.dependencies[{index}] 必须是对象")
+        ensure_keys(dependency, {"id", "description", "related_requirement_id"}, f"requirement.dependencies[{index}]")
+        for field in ("id", "description", "related_requirement_id"):
+            require(field in dependency, f"requirement.dependencies[{index}] 缺少字段: {field}")
+        dependency_id = dependency["id"]
+        require(isinstance(dependency_id, str) and DEP_ID_RE.fullmatch(dependency_id), f"requirement.dependencies[{index}].id 必须为 DEP-*")
+        require(dependency_id not in dependency_ids, f"requirement.dependencies ID 重复: {dependency_id}")
+        dependency_ids.add(dependency_id)
+        nonempty(dependency["description"], f"requirement.dependencies[{index}].description")
+        related = dependency["related_requirement_id"]
+        require(related is None or (isinstance(related, str) and REQ_ID_RE.fullmatch(related)), f"requirement.dependencies[{index}].related_requirement_id 非法")
     string_list(requirement["open_questions"], "requirement.open_questions")
+
+
+REQ_BUSINESS_FIELDS = (
+    "id", "issue_no", "title", "statement", "business_outcomes", "scope",
+    "constraints", "dependencies", "open_questions",
+)
+
+
+def load_requirement_draft(path: Path) -> dict[str, Any]:
+    require(path.is_file(), f"REQ 草案文件不存在: {path}")
+    raw = path.read_text(encoding="utf-8")
+    match = DELIVERY_PROOF_BLOCK_RE.search(raw)
+    require(match is not None, f"REQ 草案缺少 Delivery Proof YAML 机器块: {path}")
+    document = yaml.safe_load(match.group(1))
+    require(isinstance(document, dict) and document.get("document_type") == "requirement", "REQ 草案 document_type 必须为 requirement")
+    requirement = document.get("requirement")
+    require(isinstance(requirement, dict), "REQ 草案缺少 requirement")
+    required = set(REQ_BUSINESS_FIELDS) | {"status", "release_notes", "source_refs", "confirmation"}
+    ensure_keys(requirement, required, "REQ 草案 requirement")
+    for field in required:
+        require(field in requirement, f"REQ 草案 requirement 缺少字段: {field}")
+    validate_requirement({field: requirement[field] for field in REQ_BUSINESS_FIELDS})
+    require(requirement["status"] in {"DRAFT", "CONFIRMED", "SATISFIED"}, "REQ 草案 requirement.status 非法")
+    nonempty(requirement["release_notes"], "REQ 草案 requirement.release_notes")
+    require(isinstance(requirement["source_refs"], list), "REQ 草案 requirement.source_refs 必须是数组")
+    return requirement
+
+
+def value_differences(expected: Any, actual: Any, path: str) -> list[str]:
+    if type(expected) is not type(actual):
+        return [f"{path}: 草案={expected!r}，事件={actual!r}"]
+    if isinstance(expected, dict):
+        differences: list[str] = []
+        for key in sorted(set(expected) | set(actual)):
+            child = f"{path}.{key}"
+            if key not in expected or key not in actual:
+                differences.append(f"{child}: 草案或事件缺少字段")
+            else:
+                differences.extend(value_differences(expected[key], actual[key], child))
+        return differences
+    if isinstance(expected, list):
+        differences = []
+        if len(expected) != len(actual):
+            differences.append(f"{path}: 草案长度={len(expected)}，事件长度={len(actual)}")
+        for index, (left, right) in enumerate(zip(expected, actual)):
+            differences.extend(value_differences(left, right, f"{path}[{index}]"))
+        return differences
+    return [] if expected == actual else [f"{path}: 草案={expected!r}，事件={actual!r}"]
+
+
+def validate_req_draft_consistency(event: dict[str, Any], path: Path) -> None:
+    draft = load_requirement_draft(path)
+    expected = {field: draft[field] for field in REQ_BUSINESS_FIELDS}
+    expected["release_notes"] = draft["release_notes"]
+    actual = {field: event["requirement"][field] for field in REQ_BUSINESS_FIELDS}
+    actual["release_notes"] = event["reason"]
+    differences = value_differences(expected, actual, "requirement")
+    require(not differences, "REQ 草案与待发布事件业务内容不一致：" + "；".join(differences))
 
 
 def validate_specification(specification: Any) -> None:
@@ -819,6 +903,10 @@ def ensure_output_not_legacy_drafts(output_dir: Path) -> None:
 
 def render_req(event: dict[str, Any]) -> str:
     requirement = event["requirement"]
+    dependencies = [
+        f"`{item['id']}` {item['description']}（关联 REQ：{item['related_requirement_id'] or '无'}）"
+        for item in requirement["dependencies"]
+    ]
     return f"""[DP:REQ] {requirement['id']} 当前需求
 
 ## 需求目标
@@ -828,6 +916,10 @@ def render_req(event: dict[str, Any]) -> str:
 ## 需求陈述
 
 {requirement['statement']}
+
+## Issue No
+
+`{requirement['issue_no']}`
 
 ## 业务结果
 
@@ -843,9 +935,13 @@ def render_req(event: dict[str, Any]) -> str:
 
 {list_text(requirement['scope']['excluded'])}
 
-## 约束与依赖
+## 约束
 
 {list_text(requirement['constraints'])}
+
+## 依赖
+
+{list_text(dependencies)}
 
 ## 未决事项
 
@@ -875,12 +971,20 @@ def main() -> int:
     parser.add_argument("--event-file", required=True, type=Path)
     parser.add_argument("--issue", required=True)
     parser.add_argument("--comments-json", type=Path)
+    parser.add_argument("--requirement-file", type=Path, help="REQ 发布时用于一致性校验的已确认需求草案")
     parser.add_argument("--verify-git", action="store_true", help="验证事件仓库路径、commit、HEAD 和 tracked 工作区状态")
     parser.add_argument("--output-dir", required=True, type=Path)
     args = parser.parse_args()
     try:
         event = parse_document(args.event_file.resolve())
         info = validate(event)
+        if info["node"] == "REQ" and "issue_no" in event["requirement"]:
+            require(args.requirement_file is not None, "REQ 事件发布前必须提供 --requirement-file 校验已确认草案")
+            validate_req_draft_consistency(event, args.requirement_file.resolve())
+        elif info["node"] == "REQ":
+            require(args.requirement_file is None, "历史 REQ 结构不能使用当前草案一致性入口；请先迁移为统一 REQ 结构")
+        else:
+            require(args.requirement_file is None, "--requirement-file 只用于 REQ 事件")
         if args.verify_git:
             verify_git_binding(event)
         duplicate = info["event_id"] in existing_event_ids(load_comments(args.comments_json))

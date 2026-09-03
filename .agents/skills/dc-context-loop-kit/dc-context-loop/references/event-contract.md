@@ -72,8 +72,11 @@ event:
   author: product-owner
   node: REQ
   reason: 根据当前讨论整理完整需求
+  references:
+    issue: http://example/issues/1
   requirement:
     id: REQ-001
+    issue_no: HTW-000
     title: 登录失败反馈
     statement: 用户能够理解登录失败原因
     business_outcomes:
@@ -83,10 +86,11 @@ event:
       excluded: [账号注册]
     constraints:
       - 继续使用现有认证服务
+    dependencies: []
     open_questions: []
 ```
 
-必填内容是 `id`、`title`、`statement`、`business_outcomes`、`scope.included`、`scope.excluded`、`constraints` 和 `open_questions`。人类评论按“需求目标、需求陈述、业务结果、范围、约束与依赖、未决事项、发布说明”的顺序展示。
+必填内容是 `id`、`issue_no`、`title`、`statement`、`business_outcomes`、`scope.included`、`scope.excluded`、`constraints`、`dependencies` 和 `open_questions`。人类评论按“需求目标、需求陈述、Issue No、业务结果、范围、约束、依赖、未决事项、发布说明”的顺序展示。REQ 发布时必须向 `prepare_event.py` 提供 `--requirement-file`；脚本比较全部业务字段，并将本地 `release_notes` 与事件 `reason` 比较，只忽略本地状态、确认信息和事件发布技术元数据。
 
 ## SPEC：完整快照或增量
 
@@ -297,9 +301,12 @@ event:
 ```bash
 python3 <skill-dir>/scripts/prepare_event.py \
   --event-file <event.yaml> \
+  --requirement-file <需求.md> \
   --issue <issue-ref> \
   --comments-json <fresh-comments.json> \
   --output-dir <operation-workspace>
 ```
+
+`--requirement-file` 仅用于 REQ 事件，其他节点不得提供。
 
 脚本会校验节点字段、生成同名 Markdown 评论和 YAML 附件，并报告是否已存在相同 `event_id`。发布时正文必须复用生成的 Markdown，YAML 作为同一操作工作区中的附件上传；API 返回 2xx 才算发布成功。不要通过发布后的 Issue 重读来确认结果，也不要把本地路径、测试名称或退出码当作验收证据。

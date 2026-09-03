@@ -29,13 +29,9 @@ docs/交付证明/
     └── 审核工作台.html
 ```
 
-固定 YAML 数据块是机器真值源；HTML 和需求清单是只读派生视图。
+固定 YAML 数据块是机器真值源；需求清单 Markdown 和各 REQ 审核工作台 HTML 是只读派生视图。
 
-当前本地交付证明采用 Issue 单一索引：完整 intake 且 ACC 结论落地后，索引保存为
-`docs/交付证明/<ISSUE-KEY>.md`，只记录编号、event_id、评论 UUID、评论地址、计数和同步元数据，不进入 Git，也不复制事件、规格或证据正文。SPEC/IMP 发布期间不刷新最终索引；索引刷新前必须确认 intake `coverage: FULL`，并精确比较事件集合。
-
-索引同步时，调用方必须显式传入同一 Issue 的旧阶段路径（`--legacy-path`）。工具只允许将
-`docs/交付证明` 下的明确路径移入被 Git 忽略的 `.local/dc-loop/archive/<ISSUE-KEY>/`，不得静默删除、覆盖或移动根目录之外的文件；检查模式发现指定旧路径仍存在即失败。
+项目级交付证明只保留 `需求清单.md`；每个 REQ 的 `需求.md` 使用结构化 `issue_no` 关联唯一 Issue No，不再生成或维护 Issue 级索引文件。
 
 所有自测、完成前复核和验收临时材料都必须位于目标 IMPLEMENTATION 事件
 `repository.worktree_root/.local/dc-loop/tmp/<operation-id>/`。操作目录由
