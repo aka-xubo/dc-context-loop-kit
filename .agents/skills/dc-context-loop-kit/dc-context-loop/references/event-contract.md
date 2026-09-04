@@ -252,7 +252,7 @@ event:
 
 ACCEPTANCE 必须保存唯一 Git commit、验收范围、RUN、ART、逐 AST 结果和最终结论。指定一个 `IMP-*` 时使用 `targeted`；未指定 IMP 时使用 `full`。下面是可直接校验的 targeted 阻塞示例：
 
-验收事件可选保存 `traceability`，用于把当前范围的 `SCN-*`、`CHK-*` 和 `AST-*` 映射交给评论渲染器。若提供该字段，评论按“最终结论 → 证据健康 → Markdown 导航 → SCN → CHK → AST → ART → 基线/执行明细”的顺序展示；它只改变人类可读定位，不改变 closure 的裁决规则。
+验收事件可保存 `traceability`，用于把当前范围的 `SCN-*`、`CHK-*` 和 `AST-*` 映射交给评论渲染器。非 `SATISFIED` 事件允许省略该字段，以兼容历史结论和阻塞材料；新的 `SATISFIED` 事件必须提供完整 `traceability`，每个 PASSED AST 必须包含非空、可解析的 `evidence_locator` 和 ART 引用，RUN 与断言结果必须完整覆盖 scope，且不得存在范围外引用或孤立 ART。任一门禁不满足时，`prepare_event.py` 必须拒绝生成 `SATISFIED` 评论。合法评论按“最终结论 → 证据健康 → Markdown 导航 → SCN → CHK → AST → ART → 基线/执行明细”的顺序展示。
 
 ```yaml
 document_type: deep_crew_delivery_event

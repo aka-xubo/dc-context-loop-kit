@@ -479,6 +479,7 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
             require(isinstance(scope_refs.get(key), list) and scope_refs[key], f"acceptance.scope_refs.{key} 必须是非空数组")
             for value in scope_refs[key]:
                 require(isinstance(value, str) and pattern.fullmatch(value), f"acceptance.scope_refs.{key} 包含非法 ID: {value}")
+            require(len(scope_refs[key]) == len(set(scope_refs[key])), f"acceptance.scope_refs.{key} 不能重复")
         require(acceptance["req_completion_impact"] in {"NONE", "ELIGIBLE"}, "acceptance.req_completion_impact 必须为 NONE 或 ELIGIBLE")
         if acceptance["mode"] == "targeted":
             require(len(acceptance["implementation_refs"]) == 1, "targeted 验收必须且只能引用一个 IMP")
@@ -496,6 +497,8 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
         scoped_checks = set(scope_refs["checks"])
         scoped_assertions = set(scope_refs["assertions"])
         seen_traceability: set[str] = set()
+        traced_checks: set[str] = set()
+        traced_assertions: set[str] = set()
         for index, item in enumerate(traceability):
             require(isinstance(item, dict), f"acceptance.traceability[{index}] 必须是对象")
             require(set(item) == {"scenario_id", "check_ids", "assertion_ids"}, f"acceptance.traceability[{index}] 字段不完整")
@@ -507,26 +510,72 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
             for key, allowed, pattern in (("check_ids", scoped_checks, CHK_ID_RE), ("assertion_ids", scoped_assertions, AST_ID_RE)):
                 values = item.get(key)
                 require(isinstance(values, list), f"acceptance.traceability[{index}].{key} 必须是数组")
+                require(len(values) == len(set(values)), f"acceptance.traceability[{index}].{key} 不能重复")
                 for value in values:
                     require(isinstance(value, str) and pattern.fullmatch(value), f"acceptance.traceability[{index}].{key} 包含非法 ID: {value}")
                     require(value in allowed, f"acceptance.traceability[{index}].{key} 引用了范围外 ID: {value}")
+            traced_checks.update(item["check_ids"])
+            traced_assertions.update(item["assertion_ids"])
         run_ids = [run.get("id") for run in acceptance["runs"] if isinstance(run, dict)]
         artifact_ids = [artifact.get("id") for artifact in acceptance["artifacts"] if isinstance(artifact, dict)]
         require(len(run_ids) == len(acceptance["runs"]) and len(set(run_ids)) == len(run_ids), "acceptance.runs ID 缺失或重复")
         require(len(artifact_ids) == len(acceptance["artifacts"]) and len(set(artifact_ids)) == len(artifact_ids), "acceptance.artifacts ID 缺失或重复")
+        covered_run_checks: set[str] = set()
+        covered_run_assertions: set[str] = set()
+        run_statuses: list[str] = []
+        for index, run in enumerate(acceptance["runs"]):
+            require(isinstance(run.get("id"), str) and re.fullmatch(r"RUN-[A-Za-z0-9_-]+", run["id"]), f"acceptance.runs[{index}].id 非法")
+            nonempty(run.get("phase"), f"acceptance.runs[{index}].phase")
+            require(run.get("status") in {"PASSED", "FAILED", "BLOCKED"}, f"acceptance.runs[{index}].status 非法")
+            for key, allowed, pattern in (("check_refs", scoped_checks, CHK_ID_RE), ("assertion_refs", scoped_assertions, AST_ID_RE)):
+                refs = run.get(key)
+                require(isinstance(refs, list) and refs, f"acceptance.runs[{index}].{key} 必须是非空数组")
+                require(len(refs) == len(set(refs)), f"acceptance.runs[{index}].{key} 不能重复")
+                for value in refs:
+                    require(isinstance(value, str) and pattern.fullmatch(value), f"acceptance.runs[{index}].{key} 包含非法 ID: {value}")
+                    require(value in allowed, f"acceptance.runs[{index}].{key} 引用了范围外 ID: {value}")
+            covered_run_checks.update(run["check_refs"])
+            covered_run_assertions.update(run["assertion_refs"])
+            run_statuses.append(run["status"])
+        for index, artifact in enumerate(acceptance["artifacts"]):
+            require(isinstance(artifact.get("id"), str) and re.fullmatch(r"ART-[A-Za-z0-9_-]+", artifact["id"]), f"acceptance.artifacts[{index}].id 非法")
+            require(artifact.get("type") in {"command_output", "api_exchange", "state_observation", "screenshot"}, f"acceptance.artifacts[{index}].type 非法")
+            nonempty(artifact.get("location"), f"acceptance.artifacts[{index}].location")
         assertion_statuses = []
-        for result in acceptance["assertion_results"]:
+        result_assertions: list[str] = []
+        referenced_artifacts: set[str] = set()
+        for index, result in enumerate(acceptance["assertion_results"]):
             require(isinstance(result, dict), "acceptance.assertion_results 项必须是对象")
             for field in ("assertion_id", "expected", "observed", "status", "artifact_refs"):
                 require(field in result, f"断言结果缺少字段: {field}")
+            assertion_id = result["assertion_id"]
+            require(isinstance(assertion_id, str) and AST_ID_RE.fullmatch(assertion_id), f"acceptance.assertion_results[{index}].assertion_id 非法")
+            require(assertion_id in scoped_assertions, f"断言结果引用了范围外 AST: {assertion_id}")
+            nonempty(result["expected"], f"断言结果 {assertion_id}.expected")
+            nonempty(result["observed"], f"断言结果 {assertion_id}.observed")
             require(result["status"] in {"PASSED", "FAILED", "BLOCKED"}, f"断言结果状态非法: {result['status']}")
             require(isinstance(result["artifact_refs"], list), "断言结果 artifact_refs 必须是数组")
             if "evidence_locator" in result:
                 require(isinstance(result["evidence_locator"], str) and result["evidence_locator"].strip(), f"断言结果 {result.get('assertion_id')} 的 evidence_locator 必须为非空字符串")
+                require(re.fullmatch(r"(?:line|output|request|response|observed):[1-9][0-9]*|screenshot", result["evidence_locator"]) is not None, f"断言结果 {assertion_id} 的 evidence_locator 格式非法")
+            if result["status"] == "PASSED":
+                require(result["artifact_refs"], f"PASSED 断言结果 {assertion_id} 必须引用 ART")
+                require("evidence_locator" in result, f"PASSED 断言结果 {assertion_id} 必须提供 evidence_locator")
             require(set(result["artifact_refs"]).issubset(set(artifact_ids)), f"断言结果引用了不存在的 ART: {result['assertion_id']}")
+            result_assertions.append(assertion_id)
+            referenced_artifacts.update(result["artifact_refs"])
             assertion_statuses.append(result["status"])
+        require(len(result_assertions) == len(set(result_assertions)), "acceptance.assertion_results 不能重复 AST")
         if acceptance["status"] == "SATISFIED":
+            orphan_artifacts = sorted(set(artifact_ids) - referenced_artifacts)
+            require(not orphan_artifacts, f"acceptance.artifacts 存在孤立 ART: {', '.join(orphan_artifacts)}")
             require(assertion_statuses and all(status == "PASSED" for status in assertion_statuses), "SATISFIED 要求所有断言均为 PASSED")
+            require(all(status == "PASSED" for status in run_statuses), "SATISFIED 要求所有 RUN 均为 PASSED")
+            require(set(result_assertions) == scoped_assertions, "SATISFIED 的断言结果必须完整覆盖验收范围")
+            require(covered_run_checks == scoped_checks and covered_run_assertions == scoped_assertions, "SATISFIED 的 RUN 必须完整覆盖验收范围")
+            require(traceability, "SATISFIED 必须提供 traceability")
+            require(seen_traceability == scoped_scenarios, "SATISFIED 的 traceability 必须完整覆盖 scope scenarios")
+            require(traced_checks == scoped_checks and traced_assertions == scoped_assertions, "SATISFIED 的 traceability 必须完整覆盖 scope checks/assertions")
         if acceptance["status"] == "NOT_SATISFIED":
             require("FAILED" in assertion_statuses, "NOT_SATISFIED 至少需要一个 FAILED 断言")
         if acceptance["status"] == "BLOCKED":

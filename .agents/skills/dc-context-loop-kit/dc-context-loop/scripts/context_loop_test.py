@@ -1439,6 +1439,87 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn('<a id="scn-scn-001"></a>', content)
             self.assertIn("evidence_locator", content)
 
+    def assert_satisfied_acceptance_rejected(self, document: dict, expected_error: str) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(expected_error, result.stderr)
+
+    def test_satisfied_acceptance_requires_evidence_locator_for_every_assertion(self) -> None:
+        document = acceptance_event("EVT-ACC-MISSING-LOCATOR")
+        del document["event"]["acceptance"]["assertion_results"][0]["evidence_locator"]
+        self.assert_satisfied_acceptance_rejected(document, "evidence_locator")
+
+    def test_satisfied_acceptance_requires_parseable_evidence_locator(self) -> None:
+        document = acceptance_event("EVT-ACC-BAD-LOCATOR")
+        document["event"]["acceptance"]["assertion_results"][0]["evidence_locator"] = "somewhere"
+        self.assert_satisfied_acceptance_rejected(document, "evidence_locator 格式非法")
+
+    def test_satisfied_acceptance_requires_traceability(self) -> None:
+        document = acceptance_event("EVT-ACC-MISSING-TRACEABILITY")
+        del document["event"]["acceptance"]["traceability"]
+        self.assert_satisfied_acceptance_rejected(document, "traceability")
+
+    def test_satisfied_acceptance_rejects_run_refs_outside_scope(self) -> None:
+        document = acceptance_event("EVT-ACC-RUN-OUTSIDE-SCOPE")
+        run = document["event"]["acceptance"]["runs"][0]
+        run["check_refs"] = ["CHK-999"]
+        run["assertion_refs"] = ["AST-999"]
+        self.assert_satisfied_acceptance_rejected(document, "范围外")
+
+    def test_satisfied_acceptance_rejects_orphan_artifact(self) -> None:
+        document = acceptance_event("EVT-ACC-ORPHAN-ARTIFACT")
+        document["event"]["acceptance"]["artifacts"].append({
+            "id": "ART-002",
+            "type": "command_output",
+            "location": "issue://HTW-1/attachments/ART-002",
+        })
+        self.assert_satisfied_acceptance_rejected(document, "孤立 ART")
+
+    def test_satisfied_acceptance_requires_assertion_results_to_cover_scope(self) -> None:
+        document = acceptance_event("EVT-ACC-INCOMPLETE-RESULTS")
+        acceptance = document["event"]["acceptance"]
+        acceptance["spec_refs"].append("AST-002")
+        acceptance["scope_refs"]["assertions"].append("AST-002")
+        acceptance["runs"][0]["assertion_refs"].append("AST-002")
+        acceptance["traceability"][0]["assertion_ids"].append("AST-002")
+        self.assert_satisfied_acceptance_rejected(document, "断言结果必须完整覆盖验收范围")
+
+    def test_not_satisfied_acceptance_keeps_diagnostic_evidence_compatibility(self) -> None:
+        document = acceptance_event("EVT-ACC-NOT-SATISFIED-COMPAT")
+        acceptance = document["event"]["acceptance"]
+        acceptance["status"] = "NOT_SATISFIED"
+        acceptance["runs"][0]["status"] = "FAILED"
+        acceptance["assertion_results"][0]["status"] = "FAILED"
+        del acceptance["assertion_results"][0]["evidence_locator"]
+        del acceptance["traceability"]
+        acceptance["artifacts"].append({
+            "id": "ART-002",
+            "type": "command_output",
+            "location": "issue://HTW-1/attachments/ART-002",
+        })
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_full_acceptance_renders_full_scope(self) -> None:
         document = acceptance_event("EVT-ACC-FULL", subject_id="ACC-002", mode="full")
         with tempfile.TemporaryDirectory() as temporary:

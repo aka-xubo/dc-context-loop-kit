@@ -311,6 +311,21 @@ $defs:
     type: object
     additionalProperties: false
     required: [status, requirement_ref, spec_refs, implementation_refs, mode, scope_refs, req_completion_impact, repository, git_commit, runs, artifacts, assertion_results, reason]
+    allOf:
+      - if:
+          properties:
+            status: {const: SATISFIED}
+          required: [status]
+        then:
+          required: [traceability]
+          properties:
+            runs: {minItems: 1}
+            artifacts: {minItems: 1}
+            assertion_results:
+              minItems: 1
+              items:
+                required: [evidence_locator]
+            traceability: {minItems: 1}
     properties:
       status: {enum: [SATISFIED, NOT_SATISFIED, BLOCKED, INCOMPLETE]}
       requirement_ref: {type: string, pattern: '^REQ-[A-Za-z0-9_-]+$'}
