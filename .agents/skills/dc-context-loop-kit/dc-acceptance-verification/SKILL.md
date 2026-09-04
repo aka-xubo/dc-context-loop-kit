@@ -17,6 +17,29 @@ description: 在实现计划 READY 后，由验收角色执行当前 CHK 的真�
 
 验收脚本和回归测试必须通过 `operation_workspace.py exec` 启动；直接运行含有临时文件逻辑的测试入口或依赖系统默认 `tempfile` 目录的命令视为无效执行。验收产出的原始输出、RUN/ART 草稿和缓存只能保存在该 operation workspace。
 
+## 线上证据发布协议
+
+验收证据的持久化顺序固定为“生成原始证据 → 上传 Issue 评论/附件 → 线上读取确认 → 生成最终 ACCEPTANCE 事件 → cleanup”。验收者不得把本地路径、测试退出码或人工摘要当作线上证据定位。
+
+上传时必须将以下材料作为同一验收操作的一部分提交到当前 Issue：
+
+- 原始命令输出、请求响应、状态观察或视觉证据文件；
+- 包含 RUN、ART 和逐 AST 结果的结构化验收材料；
+- 最终 ACCEPTANCE 评论及其机器 YAML 附件。
+
+上传每个材料后，必须通过 Issue API/CLI 下载或读取并比对内容，记录线上评论 ID、附件 ID、文件名和可访问定位。任一上传或读取失败都必须停止收口，报告 `BLOCKED` 或 `INCOMPLETE`，不得继续 cleanup，也不得生成 `SATISFIED`。
+
+线上读取确认完成后，才允许执行：
+
+```bash
+python3 <kit-dir>/dc-context-loop/scripts/operation_workspace.py cleanup \\
+  --worktree-root <repository.worktree_root> \\
+  --operation-id <operation-id> \\
+  --terminal-status SUCCESS
+```
+
+cleanup 只删除本地临时材料，不删除或覆盖 Issue 评论、附件和历史事件。若 cleanup 失败，验收结果只能报告清理阻塞，不能宣称验收操作完成。
+
 每个正式 RUN 同时填写 `check_refs` 和 `assertion_refs`。每个 `PASSED` AST 必须在关联 ART 中保存非空 `expected`、`observed`、`status: PASSED` 和可解析、可定位的 `evidence_locator`。先保存原始命令输出、请求响应或状态查询结果，再填写 ART 摘要；不得以“全部通过”、测试名或截图代替逐 AST 实际观察。
 
 对 `assertion_type: predicate` 的 AST，ART 还必须保存 `evaluation.observations`，键名与矩阵 predicate 的 `fact` 一致。由 validator 重算结果：计算为真只能记 `PASSED`，计算为假只能记 `FAILED`；无法获得事实值则记录 `BLOCKED` 或退回验收设计。`expected`、`observed` 和 `evidence_locator` 仍然必须填写，便于人复核事实来源。

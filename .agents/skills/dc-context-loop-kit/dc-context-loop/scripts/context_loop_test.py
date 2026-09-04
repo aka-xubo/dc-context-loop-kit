@@ -289,7 +289,8 @@ def acceptance_event(
         "git_commit": git_commit,
         "runs": [{"id": run_id, "phase": "api_verification", "check_refs": ["CHK-001"], "assertion_refs": ["AST-001"], "status": "PASSED"}],
         "artifacts": [{"id": artifact_id, "type": "api_exchange", "location": f"artifacts/{run_id}.json"}],
-        "assertion_results": [{"assertion_id": "AST-001", "expected": "请求被拒绝", "observed": "返回 401", "status": "PASSED", "artifact_refs": [artifact_id]}],
+        "assertion_results": [{"assertion_id": "AST-001", "expected": "请求被拒绝", "observed": "返回 401", "status": "PASSED", "artifact_refs": [artifact_id], "evidence_locator": "response:1"}],
+        "traceability": [{"scenario_id": "SCN-001", "check_ids": ["CHK-001"], "assertion_ids": ["AST-001"]}],
         "reason": "当前 commit 上的必需断言均有直接证据支持。",
     }
     return {
@@ -1418,6 +1419,25 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("AST-001", content)
             self.assertIn("targeted", content)
             self.assertIn("单次验收", content)
+
+    def test_acceptance_renders_conclusion_first_and_markdown_traceability(self) -> None:
+        document = acceptance_event("EVT-ACC-TRACEABILITY")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_dir = root / "out"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "prepare_event.py"), "--event-file", str(event_file), "--issue", "HTW-1", "--output-dir", str(output_dir)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            content = (output_dir / "EVT-ACC-TRACEABILITY.md").read_text(encoding="utf-8")
+            self.assertLess(content.index("## 最终结论"), content.index("## 验收基线"))
+            self.assertIn("## 验收导航", content)
+            self.assertIn("(#scn-scn-001)", content)
+            self.assertIn('<a id="scn-scn-001"></a>', content)
+            self.assertIn("evidence_locator", content)
 
     def test_full_acceptance_renders_full_scope(self) -> None:
         document = acceptance_event("EVT-ACC-FULL", subject_id="ACC-002", mode="full")

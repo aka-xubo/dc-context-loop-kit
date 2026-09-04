@@ -17,6 +17,8 @@ RUN 只有在所引 ART 中逐 AST 存在非空 `expected`、`observed`、`statu
 
 验收者逐 AST 检查“预期、实际、定位内容”是否证明同一件事。测试名、退出码、汇总性“全部通过”或无关状态变化都不是直接观察；无法确认语义对应时，不将该 AST 计入 PASSED 覆盖。
 
+最终 ACCEPTANCE 事件必须携带可渲染的 `traceability` 关系：每个 `SCN-*` 映射其 `CHK-*` 和 `AST-*`，每个 AST 结果保留 `expected`、`observed`、`status`、`artifact_refs`，并在可用时保留 `evidence_locator`。总协调器使用该关系生成结论先行的评论、Markdown 目录、章节锚点和附件链接；不得另行维护展示状态。
+
 只有全部阻断 CHK 的 AST 都被当前有效证据覆盖时，SCN 才显示 `PASS`；当前失败显示“未通过”，当前阻塞显示“已阻塞”，其余显示“待验证”。这些状态由当前 CHK 证明结果派生，不读取报告中的手工状态。`scenario_results` 只保存已经成立的 `PASS` 裁决、非空 `reason` 和至少一个 `run_refs`；报告未满足时可以为空。
 
 验收收口不保存测试路径、生产代码路径、执行状态，也不修改业务定义或回填矩阵。

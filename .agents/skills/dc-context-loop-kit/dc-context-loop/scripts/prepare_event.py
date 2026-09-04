@@ -490,6 +490,26 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
         require(isinstance(acceptance["runs"], list), "acceptance.runs 必须是数组")
         require(isinstance(acceptance["artifacts"], list), "acceptance.artifacts 必须是数组")
         require(isinstance(acceptance["assertion_results"], list), "acceptance.assertion_results 必须是数组")
+        traceability = acceptance.get("traceability", [])
+        require(isinstance(traceability, list), "acceptance.traceability 必须是数组")
+        scoped_scenarios = set(scope_refs["scenarios"])
+        scoped_checks = set(scope_refs["checks"])
+        scoped_assertions = set(scope_refs["assertions"])
+        seen_traceability: set[str] = set()
+        for index, item in enumerate(traceability):
+            require(isinstance(item, dict), f"acceptance.traceability[{index}] 必须是对象")
+            require(set(item) == {"scenario_id", "check_ids", "assertion_ids"}, f"acceptance.traceability[{index}] 字段不完整")
+            scenario_id = item.get("scenario_id")
+            require(isinstance(scenario_id, str) and SCN_ID_RE.fullmatch(scenario_id), f"acceptance.traceability[{index}].scenario_id 非法")
+            require(scenario_id in scoped_scenarios, f"acceptance.traceability[{index}] 引用了范围外 SCN: {scenario_id}")
+            require(scenario_id not in seen_traceability, f"acceptance.traceability 重复 SCN: {scenario_id}")
+            seen_traceability.add(scenario_id)
+            for key, allowed, pattern in (("check_ids", scoped_checks, CHK_ID_RE), ("assertion_ids", scoped_assertions, AST_ID_RE)):
+                values = item.get(key)
+                require(isinstance(values, list), f"acceptance.traceability[{index}].{key} 必须是数组")
+                for value in values:
+                    require(isinstance(value, str) and pattern.fullmatch(value), f"acceptance.traceability[{index}].{key} 包含非法 ID: {value}")
+                    require(value in allowed, f"acceptance.traceability[{index}].{key} 引用了范围外 ID: {value}")
         run_ids = [run.get("id") for run in acceptance["runs"] if isinstance(run, dict)]
         artifact_ids = [artifact.get("id") for artifact in acceptance["artifacts"] if isinstance(artifact, dict)]
         require(len(run_ids) == len(acceptance["runs"]) and len(set(run_ids)) == len(run_ids), "acceptance.runs ID 缺失或重复")
@@ -501,6 +521,8 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
                 require(field in result, f"断言结果缺少字段: {field}")
             require(result["status"] in {"PASSED", "FAILED", "BLOCKED"}, f"断言结果状态非法: {result['status']}")
             require(isinstance(result["artifact_refs"], list), "断言结果 artifact_refs 必须是数组")
+            if "evidence_locator" in result:
+                require(isinstance(result["evidence_locator"], str) and result["evidence_locator"].strip(), f"断言结果 {result.get('assertion_id')} 的 evidence_locator 必须为非空字符串")
             require(set(result["artifact_refs"]).issubset(set(artifact_ids)), f"断言结果引用了不存在的 ART: {result['assertion_id']}")
             assertion_statuses.append(result["status"])
         if acceptance["status"] == "SATISFIED":
@@ -869,10 +891,12 @@ def render_acceptance(event: dict[str, Any]) -> str:
     acceptance = event["acceptance"]
     mode_label = "单次验收" if acceptance["mode"] == "targeted" else "全量验收"
     target = ", ".join(acceptance["implementation_refs"]) if acceptance["mode"] == "targeted" else "当前有效 SPEC"
+    assertion_results = {str(item.get("assertion_id")): item for item in acceptance["assertion_results"]}
+    traceability = acceptance.get("traceability", [])
     rows = "\n".join(
-        f"| `{item['assertion_id']}` | {display(item['expected'])} | {display(item['observed'])} | {item['status']} | {', '.join(item.get('artifact_refs', [])) or '无'} |"
+        f"| [`{item['assertion_id']}`](#ast-{item['assertion_id'].lower()}) | {display(item['expected'])} | {display(item['observed'])} | {item['status']} | {', '.join(item.get('artifact_refs', [])) or '无'} | {display(item.get('evidence_locator', '未提供'))} |"
         for item in acceptance["assertion_results"]
-    ) or "| - | - | - | - | - |"
+    ) or "| - | - | - | - | - | - |"
     runs = "\n".join(
         f"- `{run['id']}`：{run['phase']}：{run['status']}（CHK：{', '.join(run.get('check_refs', [])) or '无'}；AST：{', '.join(run.get('assertion_refs', [])) or '无'}）"
         for run in acceptance["runs"]
@@ -881,7 +905,58 @@ def render_acceptance(event: dict[str, Any]) -> str:
         f"- `{artifact['id']}`：{artifact['type']}，{artifact['location']}"
         for artifact in acceptance["artifacts"]
     ) or "- 无"
+    navigation = []
+    drilldown = []
+    for item in traceability:
+        scenario_id = item["scenario_id"]
+        check_ids = item.get("check_ids", [])
+        assertion_ids = item.get("assertion_ids", [])
+        navigation.append(
+            f"- [`{scenario_id}`](#scn-{scenario_id.lower()}) → "
+            + ", ".join(f"[`{value}`](#chk-{value.lower()})" for value in check_ids)
+            + " → "
+            + ", ".join(f"[`{value}`](#ast-{value.lower()})" for value in assertion_ids)
+        )
+        drilldown.append(
+            f"<a id=\"scn-{scenario_id.lower()}\"></a>\n### `{scenario_id}`\n\n"
+            f"- CHK：{', '.join(f'[`{value}`](#chk-{value.lower()})' for value in check_ids) or '无'}\n"
+            f"- AST：{', '.join(f'[`{value}`](#ast-{value.lower()})' for value in assertion_ids) or '无'}"
+        )
+        for check_id in check_ids:
+            drilldown.append(
+                f"<a id=\"chk-{check_id.lower()}\"></a>\n#### `{check_id}`\n\n"
+                f"- 覆盖 AST：{', '.join(f'[`{value}`](#ast-{value.lower()})' for value in assertion_ids) or '无'}"
+            )
+        for assertion_id in assertion_ids:
+            result = assertion_results.get(assertion_id, {})
+            drilldown.append(
+                f"<a id=\"ast-{assertion_id.lower()}\"></a>\n##### `{assertion_id}`\n\n"
+                f"- 预期：{display(result.get('expected', '未提供'))}\n"
+                f"- 实际观察：{display(result.get('observed', '未提供'))}\n"
+                f"- 结果：{display(result.get('status', '未提供'))}\n"
+                f"- 证据：{', '.join(result.get('artifact_refs', [])) or '无'}\n"
+                f"- 定位：{display(result.get('evidence_locator', '未提供'))}"
+            )
+    navigation_text = "\n".join(navigation) or "- 未提供结构化分层关系"
+    drilldown_text = "\n\n".join(drilldown) or "暂无分层详情"
+    passed = sum(1 for item in acceptance["assertion_results"] if item.get("status") == "PASSED")
+    total = len(acceptance["assertion_results"])
+    locator_count = sum(1 for item in acceptance["assertion_results"] if item.get("evidence_locator"))
     return f"""[DP:ACCEPTANCE] {event['subject_id']} · {mode_label} · {target} 验收结论
+
+## 最终结论
+
+- 结论：**{acceptance['status']}**
+- 裁决原因：{acceptance['reason']}
+- 证据健康：{passed}/{total} 条断言 PASSED；{locator_count}/{total} 条断言包含 evidence_locator
+
+## 验收导航
+
+{navigation_text}
+
+## 场景 → CHK → AST 分层定位
+
+{drilldown_text}
 
 ## 验收基线
 
@@ -911,14 +986,9 @@ def render_acceptance(event: dict[str, Any]) -> str:
 
 ## 逐断言结果
 
-| 断言 | 预期 | 实际观察 | 结果 | 证据 |
-|---|---|---|---|---|
+| 断言 | 预期 | 实际观察 | 结果 | 证据 | 定位 |
+|---|---|---|---|---|---|
 {rows}
-
-## 最终结论
-
-- 结论：**{acceptance['status']}**
-- 裁决原因：{acceptance['reason']}
 
 ## 下一步
 

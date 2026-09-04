@@ -362,6 +362,17 @@ $defs:
             observed: {type: string, minLength: 1}
             status: {enum: [PASSED, FAILED, BLOCKED]}
             artifact_refs: {type: array, items: {type: string, pattern: '^ART-[A-Za-z0-9_-]+$'}}
+            evidence_locator: {type: string, minLength: 1}
+      traceability:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required: [scenario_id, check_ids, assertion_ids]
+          properties:
+            scenario_id: {type: string, pattern: '^SCN-[A-Za-z0-9_-]+$'}
+            check_ids: {type: array, items: {type: string, pattern: '^CHK-[A-Za-z0-9_-]+$'}}
+            assertion_ids: {type: array, items: {type: string, pattern: '^AST-[A-Za-z0-9_-]+$'}}
       reason: {type: string, minLength: 1}
   repository_location:
     type: object
