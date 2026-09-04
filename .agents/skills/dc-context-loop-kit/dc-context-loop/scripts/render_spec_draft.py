@@ -137,8 +137,8 @@ def render(event: dict[str, Any], specification: dict[str, Any], effective: dict
     template: the same event data must produce the same human-readable
     comment that will be published by ``prepare_event.py``.
     """
-    del specification, effective, base_ref
-    return event_tool.render(event)
+    del specification, base_ref
+    return event_tool.render(event, effective)
 
 
 def main() -> int:

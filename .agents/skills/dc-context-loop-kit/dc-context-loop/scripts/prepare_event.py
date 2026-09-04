@@ -927,45 +927,101 @@ def render_acceptance(event: dict[str, Any]) -> str:
 {render_machine_block(event)}"""
 
 
-def render_spec(event: dict[str, Any]) -> str:
+def render_spec(event: dict[str, Any], effective_specification: dict[str, Any] | None = None) -> str:
     specification = event["specification"]
+    semantic_specification = effective_specification or specification
+    if "changes" in semantic_specification:
+        semantic_specification = {"scenarios": [], "checks": [], "assertions": []}
+
     def markdown_cell(value: Any) -> str:
         return display(value).replace("|", "\\|").replace("\n", " ")
 
-    def scenario_table(items: list[dict[str, Any]]) -> str:
+    def scenario_index(items: list[dict[str, Any]]) -> str:
         if not items:
             return "无"
-        rows = ["| SCN | 标题 | 业务结果 | Given | When | Then | 交付面 |", "|---|---|---|---|---|---|---|"]
+        rows = ["| SCN | 标题 | 业务结果 | 交付面 |", "|---|---|---|---|"]
         for item in items:
-            given = "；".join(item.get("given", [])) or "无"
-            then = "；".join(f"{outcome['id']} {outcome['statement']}" for outcome in item.get("then", [])) or "无"
             rows.append(
                 f"| `{item['id']}` | {markdown_cell(item['title'])} | {markdown_cell(item['business_result'])} | "
-                f"{markdown_cell(given)} | {markdown_cell(item['when'])} | {markdown_cell(then)} | "
                 f"{markdown_cell(', '.join(item.get('delivery_surfaces', [])) or '无')} |"
             )
         return "\n".join(rows)
+
+    def scenario_details(items: list[dict[str, Any]], heading: str) -> str:
+        if not items:
+            return f"### {heading}\n\n无"
+        sections = [f"### {heading}"]
+        for item in items:
+            sections.extend([
+                "",
+                f"#### `{item['id']}` · {markdown_cell(item['title'])}",
+                "",
+                f"- 业务结果：{markdown_cell(item['business_result'])}",
+                "- Given：",
+                *(f"  - {markdown_cell(value)}" for value in (item.get("given") or ["无"])),
+                f"- When：{markdown_cell(item['when'])}",
+                "- Then：",
+                *(f"  - `{outcome['id']}`：{markdown_cell(outcome['statement'])}" for outcome in (item.get("then") or [])),
+                f"- 交付面：{markdown_cell(', '.join(item.get('delivery_surfaces', [])) or '无')}",
+            ])
+        return "\n".join(sections)
+
+    def check_details(items: list[dict[str, Any]], scenarios: list[dict[str, Any]], heading: str) -> str:
+        if not items:
+            return f"### {heading}\n\n无"
+        scenario_by_id = {item["id"]: item for item in scenarios}
+        sections = [f"### {heading}"]
+        for item in items:
+            sections.extend([
+                "",
+                f"#### `{item['id']}` · {markdown_cell(item['responsibility'])}",
+                "",
+                f"- 类型：`{item['verification_type']}`",
+                f"- 必需：{'是' if item['required'] else '否'}",
+                f"- 阻断：{'是' if item['blocking'] else '否'}",
+                "- 覆盖场景：",
+            ])
+            for scenario_id in item.get("scenario_ids", []):
+                scenario = scenario_by_id.get(scenario_id)
+                if scenario:
+                    sections.append(f"  - `{scenario_id}` · {markdown_cell(scenario['title'])}：{markdown_cell(scenario['business_result'])}")
+                else:
+                    sections.append(f"  - `{scenario_id}` · 未解析")
+        return "\n".join(sections)
+
+    def assertion_details(items: list[dict[str, Any]], checks: list[dict[str, Any]], scenarios: list[dict[str, Any]], heading: str) -> str:
+        if not items:
+            return f"### {heading}\n\n无"
+        check_by_id = {item["id"]: item for item in checks}
+        then_by_ref = {
+            f"{scenario['id']}.{outcome['id']}": (scenario, outcome)
+            for scenario in scenarios
+            for outcome in scenario.get("then", [])
+        }
+        sections = [f"### {heading}"]
+        for item in items:
+            check = check_by_id.get(item["check_id"])
+            sections.extend([
+                "",
+                f"#### `{item['id']}` · {markdown_cell(item['description'])}",
+                "",
+                f"- 类型：`{item['assertion_type']}`",
+                f"- 所属 CHK：`{item['check_id']}` · {markdown_cell(check['responsibility']) if check else '未解析'}",
+                "- 结果引用：",
+            ])
+            for outcome_ref in item.get("outcome_refs", []):
+                resolved = then_by_ref.get(outcome_ref)
+                if resolved:
+                    scenario, outcome = resolved
+                    sections.append(f"  - `{outcome_ref}` · {markdown_cell(scenario['title'])}：{markdown_cell(outcome['statement'])}")
+                else:
+                    sections.append(f"  - `{outcome_ref}` · 未解析（当前展示数据未包含对应 Then）")
+        return "\n".join(sections)
 
     if "changes" in specification:
         changes = specification["changes"]
         def ids_or_none(items: list[Any]) -> str:
             return "、".join(item if isinstance(item, str) else item.get("id", "") for item in items) or "无"
-        def objects_text(object_type: str, items: list[dict[str, Any]]) -> str:
-            if not items:
-                return "无"
-            if object_type == "scenarios":
-                return scenario_table(items)
-            if object_type == "checks":
-                return "\n".join(
-                    f"| `{item['id']}` | {', '.join(item['scenario_ids'])} | {item['verification_type']} | {item['responsibility']} | "
-                    f"{'是' if item['required'] else '否'} | {'是' if item['blocking'] else '否'} |"
-                    for item in items
-                )
-            return "\n".join(
-                f"| `{item['id']}` | {item['check_id']} | {', '.join(item['outcome_refs'])} | "
-                f"{item['assertion_type']} | {item['description']} |"
-                for item in items
-            )
 
         added = changes["added"]
         modified = changes["modified"]
@@ -986,39 +1042,19 @@ def render_spec(event: dict[str, Any]) -> str:
 
 ## 新增
 
-### 场景
+{scenario_details(added['scenarios'], '新增场景')}
 
-{scenario_table(added['scenarios'])}
+        {check_details(added['checks'], semantic_specification['scenarios'], '新增检查责任')}
 
-### 检查责任
-
-| CHK | 场景 | 类型 | 责任 | 必需 | 阻断 |
-|---|---|---|---|---|---|
-{objects_text('checks', added['checks'])}
-
-### 原子断言
-
-| AST | CHK | 结果引用 | 类型 | 描述 |
-|---|---|---|---|---|
-{objects_text('assertions', added['assertions'])}
+        {assertion_details(added['assertions'], semantic_specification['checks'], semantic_specification['scenarios'], '新增原子断言')}
 
 ## 修改
 
-### 场景
+{scenario_details(modified['scenarios'], '修改场景')}
 
-{scenario_table(modified['scenarios'])}
+        {check_details(modified['checks'], semantic_specification['scenarios'], '修改检查责任')}
 
-### 检查责任
-
-| CHK | 场景 | 类型 | 责任 | 必需 | 阻断 |
-|---|---|---|---|---|---|
-{objects_text('checks', modified['checks'])}
-
-### 原子断言
-
-| AST | CHK | 结果引用 | 类型 | 描述 |
-|---|---|---|---|---|
-{objects_text('assertions', modified['assertions'])}
+        {assertion_details(modified['assertions'], semantic_specification['checks'], semantic_specification['scenarios'], '修改原子断言')}
 
 ## 删除
 
@@ -1031,17 +1067,6 @@ def render_spec(event: dict[str, Any]) -> str:
 {list_text(specification['open_questions'])}
 
 {render_machine_block(event)}"""
-    scenarios = scenario_table(specification["scenarios"])
-    checks = "\n".join(
-        f"| `{check['id']}` | {', '.join(check['scenario_ids'])} | {check['verification_type']} | {check['responsibility']} | "
-        f"{'是' if check['required'] else '否'} | {'是' if check['blocking'] else '否'} |"
-        for check in specification["checks"]
-    )
-    assertions = "\n".join(
-        f"| `{assertion['id']}` | {assertion['check_id']} | {', '.join(assertion['outcome_refs'])} | "
-        f"{assertion['assertion_type']} | {assertion['description']} |"
-        for assertion in specification["assertions"]
-    )
     return f"""[DP:SPEC] {event['subject_id']} 当前验收规格
 
 ## 关联需求
@@ -1054,19 +1079,19 @@ def render_spec(event: dict[str, Any]) -> str:
 
 ## 验收场景
 
-{scenarios}
+### 场景索引
+
+{scenario_index(specification['scenarios'])}
+
+{scenario_details(specification['scenarios'], '场景详情')}
 
 ## 检查责任
 
-| CHK | 场景 | 类型 | 责任 | 必需 | 阻断 |
-|---|---|---|---|---|---|
-{checks}
+{check_details(specification['checks'], specification['scenarios'], '检查责任详情')}
 
 ## 原子断言
 
-| AST | CHK | 结果引用 | 类型 | 描述 |
-|---|---|---|---|---|
-{assertions}
+{assertion_details(specification['assertions'], specification['checks'], specification['scenarios'], '原子断言详情')}
 
 ## 未决事项
 
@@ -1152,11 +1177,12 @@ def render_req(event: dict[str, Any]) -> str:
 {render_machine_block(event)}"""
 
 
-def render(event: dict[str, Any], specification: tuple[str, dict[str, Any]] | None = None) -> str:
+def render(event: dict[str, Any], specification: tuple[str, dict[str, Any]] | dict[str, Any] | None = None) -> str:
     if event["node"] == "REQ":
         return render_req(event)
     if event["node"] == "SPEC":
-        return render_spec(event)
+        effective_specification = specification[1] if isinstance(specification, tuple) else specification
+        return render_spec(event, effective_specification)
     if event["node"] == "IMPLEMENTATION":
         require(specification is not None, "生成 IMPLEMENTATION 评论必须提供当前有效 SPEC")
         return render_implementation(event, *specification)

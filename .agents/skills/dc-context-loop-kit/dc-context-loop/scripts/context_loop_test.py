@@ -993,7 +993,15 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("SPEC-001 当前验收规格", content)
             self.assertNotIn("DEEP_CREW_EVENT_START", content)
             self.assertIn("YAML 附件：`SPEC-001-事件.yaml`", content)
-            self.assertIn("| SCN | 标题 | 业务结果 | Given | When | Then | 交付面 |", content)
+            self.assertIn("| SCN | 标题 | 业务结果 | 交付面 |", content)
+            self.assertIn("### 场景详情", content)
+            self.assertIn("### 检查责任详情", content)
+            self.assertIn("### 原子断言详情", content)
+            self.assertIn("- When：用户提交错误密码", content)
+            self.assertIn("SCN-001.THEN-001` · 登录失败：系统拒绝登录", content)
+            self.assertIn("所属 CHK：`CHK-001` · 验证错误密码被拒绝", content)
+            self.assertNotIn("| SCN | 标题 | 业务结果 | Given | When | Then | 交付面 |", content)
+            self.assertNotIn("<br", content)
 
     def test_spec_draft_renderer_matches_prepare_event_comment(self) -> None:
         draft_document = specification_event("EVT-SPEC-DRAFT-CONSISTENCY")
@@ -1041,7 +1049,10 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("新增", content)
             self.assertIn("SCN-002", content)
             self.assertIn("SPEC-002 验收规格增量", content)
-            self.assertIn("| SCN | 标题 | 业务结果 | Given | When | Then | 交付面 |", content)
+            self.assertIn("### 新增场景", content)
+            self.assertIn("### 新增检查责任", content)
+            self.assertIn("### 新增原子断言", content)
+            self.assertNotIn("| SCN | 标题 | 业务结果 | Given | When | Then | 交付面 |", content)
 
     def test_spec_draft_renderer_merges_incremental_view(self) -> None:
         base = specification_event("EVT-SPEC-BASE")
@@ -1068,7 +1079,9 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("AST-002", content)
             self.assertNotIn("DEEP_CREW_EVENT_START", content)
             self.assertIn("YAML 附件：`SPEC-002-事件.yaml`", content)
+            self.assertIn("SCN-002.THEN-002` · 明确验收授权：系统进入验收流程", content)
             self.assertNotIn("SCN-001", content)
+            self.assertNotIn("| SCN | 标题 | 业务结果 | Given | When | Then | 交付面 |", content)
 
     def test_spec_requires_spec_subject_id(self) -> None:
         document = specification_event("EVT-SPEC-MISSING-ID")
