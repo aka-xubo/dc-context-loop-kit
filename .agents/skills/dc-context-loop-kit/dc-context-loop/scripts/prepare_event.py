@@ -928,6 +928,7 @@ def render_acceptance(event: dict[str, Any]) -> str:
 
 
 def render_spec(event: dict[str, Any], effective_specification: dict[str, Any] | None = None) -> str:
+    """Render SPEC comments with compact indexes and vertically readable semantics."""
     specification = event["specification"]
     semantic_specification = effective_specification or specification
     if "changes" in semantic_specification:

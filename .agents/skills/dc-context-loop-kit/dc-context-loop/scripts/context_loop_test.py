@@ -973,6 +973,7 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("event 存在未定义字段: unknown_field", result.stderr)
 
     def test_spec_renderer_renders_full_snapshot(self) -> None:
+        # The assertions below intentionally check both semantic readability and layout width.
         document = specification_event("EVT-SPEC-RENDER")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
