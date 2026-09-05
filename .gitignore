@@ -1,1 +1,7 @@
 .local/
+
+# Delivery proof definitions, generated views, and local evidence stay in the Issue.
+docs/交付证明/
+
+# Finder metadata is never source code.
+.DS_Store
