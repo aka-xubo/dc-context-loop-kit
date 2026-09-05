@@ -18,7 +18,7 @@
 
 ## 共享资源
 
-`dc-proof-resources` 保存节点技能使用的 Schema、参考资料、模板和校验脚本。复制整个 `dc-context-loop-kit` 时保持目录结构不变，节点技能中的相对引用即可继续工作。
+交付证明资源按调用关系归属到 `dc-context-loop` 协调层或对应节点技能：各技能目录内的 `contracts/`、`templates/`、`references/` 和 `scripts/` 是唯一规范来源。复制整个 `dc-context-loop-kit` 时保持目录结构不变，节点技能中的相对引用即可继续工作。
 
 ## 使用方式
 

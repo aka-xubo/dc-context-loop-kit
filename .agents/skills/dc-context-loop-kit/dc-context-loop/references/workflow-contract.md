@@ -81,6 +81,6 @@ scenario_results:
 派生视图：
 
 ```bash
-python3 <kit-dir>/dc-proof-resources/scripts/render_delivery_review.py docs/交付证明
-python3 <kit-dir>/dc-proof-resources/scripts/render_delivery_review.py --check docs/交付证明
+python3 <kit-dir>/dc-context-loop/scripts/render_delivery_review.py docs/交付证明
+python3 <kit-dir>/dc-context-loop/scripts/render_delivery_review.py --check docs/交付证明
 ```

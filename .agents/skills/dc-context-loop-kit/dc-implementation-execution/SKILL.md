@@ -94,7 +94,7 @@ human_gate:
 
 事件准备的 `--output-dir` 必须位于当前 operation workspace，`prepare_event.py` 会拒绝 `.local/dc-loop/drafts` 及其子目录。历史遗留的事件 YAML 不得继续作为本地事实来源；实现修复时使用 `dc-context-loop/scripts/event_artifact_cleanup.py cleanup_legacy_drafts` 按明确 Issue 清理，并保留 Markdown 草案。
 
-每个可通过稳定公开代码接口验证的行为，默认按一个垂直切片执行 `RED → GREEN → REFACTOR`，详细规则见 [../dc-proof-resources/references/tdd-rules.md](../dc-proof-resources/references/tdd-rules.md)。以下情况才允许豁免，并在 `test_strategy.exemptions` 中写清受影响 AST、理由和替代检查：
+每个可通过稳定公开代码接口验证的行为，默认按一个垂直切片执行 `RED → GREEN → REFACTOR`，详细规则见 [references/tdd-rules.md](references/tdd-rules.md)。以下情况才允许豁免，并在 `test_strategy.exemptions` 中写清受影响 AST、理由和替代检查：
 
 - 工程装配、依赖注入、迁移或启动配置；
 - 必须依赖真实外部系统的 E2E；
@@ -170,4 +170,4 @@ RED/GREEN/REFACTOR 只记录实现过程，不生成正式 RUN/ART。
 
 `READY` 只表示该次实现交付的 commit 具备交给验收角色验证的条件，不代表 `SATISFIED`。完成实现后固定 commit，再由 `dc-acceptance-verification` 执行正式 RUN/ART；提交变化会使当前验收证据失效。
 
-详细字段、问题分类和交互示例见 [../dc-proof-resources/references/implementation-planning.md](../dc-proof-resources/references/implementation-planning.md)。
+详细字段、问题分类和交互示例见 [references/implementation-planning.md](references/implementation-planning.md)。

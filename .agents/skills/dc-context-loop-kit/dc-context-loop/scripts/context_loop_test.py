@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,7 +16,37 @@ import yaml
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parents[4]
-PROOF_SCRIPT_DIR = SCRIPT_DIR.parent.parent / "dc-proof-resources" / "scripts"
+PROOF_SCRIPT_DIR = SCRIPT_DIR
+KIT_ROOT = SCRIPT_DIR.parent.parent
+LEGACY_RESOURCE_DIR_NAME = "dc-" + "proof-resources"
+INTERNALIZED_RESOURCES = {
+    "contracts/failure-types.yaml": "dc-context-loop/contracts/failure-types.yaml",
+    "templates/需求清单.md": "dc-context-loop/templates/需求清单.md",
+    "scripts/req_model.py": "dc-context-loop/scripts/req_model.py",
+    "scripts/validate_delivery_proof.py": "dc-context-loop/scripts/validate_delivery_proof.py",
+    "scripts/render_delivery_review.py": "dc-context-loop/scripts/render_delivery_review.py",
+    "references/workflow-contract.md": "dc-context-loop/references/workflow-contract.md",
+    "references/glossary.md": "dc-context-loop/references/glossary.md",
+    "contracts/requirement.schema.yaml": "dc-requirement-slicing/contracts/requirement.schema.yaml",
+    "templates/需求.md": "dc-requirement-slicing/templates/需求.md",
+    "references/requirement-discovery.md": "dc-requirement-slicing/references/requirement-discovery.md",
+    "contracts/acceptance-scenario.schema.yaml": "dc-acceptance-design/contracts/acceptance-scenario.schema.yaml",
+    "contracts/acceptance-matrix.schema.yaml": "dc-acceptance-design/contracts/acceptance-matrix.schema.yaml",
+    "templates/验收场景.md": "dc-acceptance-design/templates/验收场景.md",
+    "templates/验收矩阵.md": "dc-acceptance-design/templates/验收矩阵.md",
+    "contracts/implementation-plan.schema.yaml": "dc-implementation-execution/contracts/implementation-plan.schema.yaml",
+    "templates/实现计划.md": "dc-implementation-execution/templates/实现计划.md",
+    "references/implementation-planning.md": "dc-implementation-execution/references/implementation-planning.md",
+    "references/tdd-rules.md": "dc-implementation-execution/references/tdd-rules.md",
+    "references/testing-public-behavior.md": "dc-implementation-execution/references/testing-public-behavior.md",
+    "references/mocking-boundaries.md": "dc-implementation-execution/references/mocking-boundaries.md",
+    "references/test-data-policy.md": "dc-implementation-execution/references/test-data-policy.md",
+    "contracts/test-evidence.schema.yaml": "dc-acceptance-verification/contracts/test-evidence.schema.yaml",
+    "templates/测试证据.md": "dc-acceptance-verification/templates/测试证据.md",
+    "references/evidence-recording.md": "dc-acceptance-verification/references/evidence-recording.md",
+    "contracts/acceptance-report.schema.yaml": "dc-acceptance-closure/contracts/acceptance-report.schema.yaml",
+    "templates/验收报告.md": "dc-acceptance-closure/templates/验收报告.md",
+}
 
 
 def require_operation_temp_environment() -> Path:
@@ -334,6 +366,76 @@ def implementation_plan_document() -> dict:
         },
     }
 class ContextLoopTest(unittest.TestCase):
+    def test_resources_are_internalized_by_unique_owner(self) -> None:
+        target_paths = [KIT_ROOT / relative for relative in INTERNALIZED_RESOURCES.values()]
+        self.assertEqual(len(target_paths), len(set(target_paths)))
+        for source_name, relative in INTERNALIZED_RESOURCES.items():
+            target = KIT_ROOT / relative
+            self.assertTrue(target.exists(), f"{source_name} -> {target} 缺少目标资源")
+            self.assertTrue(target.is_file(), str(target))
+        self.assertFalse((KIT_ROOT / LEGACY_RESOURCE_DIR_NAME).exists())
+
+    def test_active_skill_package_has_no_legacy_resource_path_references(self) -> None:
+        legacy_path = LEGACY_RESOURCE_DIR_NAME
+        scanned = []
+        for path in KIT_ROOT.rglob("*"):
+            if not path.is_file() or ".git" in path.parts:
+                continue
+            if path.suffix.lower() not in {".md", ".py", ".json", ".yaml", ".yml"}:
+                continue
+            content = path.read_text(encoding="utf-8")
+            if legacy_path in content:
+                scanned.append(str(path.relative_to(KIT_ROOT)))
+        self.assertEqual(scanned, [], f"活跃技能包仍包含旧资源路径: {scanned}")
+
+    def test_internalized_resources_match_saved_baseline_content(self) -> None:
+        baseline = PROJECT_ROOT / ".local/dc-loop/tmp/htw-1791-imp-001/proof-before.sha256"
+        if not baseline.exists():
+            self.skipTest("独立复制包不携带仓库级迁移基线")
+        expected = {}
+        for line in baseline.read_text(encoding="utf-8").splitlines():
+            digest, _, source = line.partition("  ")
+            legacy_root = Path(".agents/skills/dc-context-loop-kit") / LEGACY_RESOURCE_DIR_NAME
+            expected[str(Path(source).relative_to(legacy_root))] = digest
+        self.assertEqual(set(expected), set(INTERNALIZED_RESOURCES))
+        for source_name, target_relative in INTERNALIZED_RESOURCES.items():
+            target = KIT_ROOT / target_relative
+            content = target.read_bytes()
+            if source_name == "references/workflow-contract.md":
+                current_command = b"<kit-dir>/dc-context-loop/scripts/render_delivery_review.py"
+                previous_command = f"<kit-dir>/{LEGACY_RESOURCE_DIR_NAME}/scripts/render_delivery_review.py".encode()
+                content = content.replace(current_command, previous_command)
+            actual = hashlib.sha256(content).hexdigest()
+            self.assertEqual(actual, expected[source_name], source_name)
+
+    def test_independent_copy_runs_core_checks_without_source_path(self) -> None:
+        if os.environ.get("DC_LOOP_SKIP_INDEPENDENT_COPY_TEST"):
+            self.skipTest("避免独立复制测试递归")
+        with tempfile.TemporaryDirectory() as temporary:
+            copy_root = Path(temporary) / "dc-context-loop-kit"
+            shutil.copytree(KIT_ROOT, copy_root)
+            self.assertFalse((copy_root / LEGACY_RESOURCE_DIR_NAME).exists())
+            workspace_script = copy_root / "dc-context-loop/scripts/operation_workspace.py"
+            create = subprocess.run(
+                [sys.executable, str(workspace_script), "create", "--worktree-root", str(copy_root), "--operation-id", "copy-test"],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(create.returncode, 0, create.stderr)
+            operation = copy_root / ".local/dc-loop/tmp/copy-test"
+            env = os.environ.copy()
+            env["DC_LOOP_SKIP_INDEPENDENT_COPY_TEST"] = "1"
+            run = subprocess.run(
+                [sys.executable, str(copy_root / "dc-context-loop/scripts/context_loop_test.py")],
+                check=False, capture_output=True, text=True, cwd=copy_root, env=env,
+            )
+            self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+            cleanup = subprocess.run(
+                [sys.executable, str(workspace_script), "cleanup", "--worktree-root", str(copy_root), "--operation-id", "copy-test", "--terminal-status", "SUCCESS"],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(cleanup.returncode, 0, cleanup.stderr)
+            self.assertFalse(operation.exists())
+
     def test_new_numeric_implementation_requires_direct_spec_ref(self) -> None:
         document = implementation_event("EVT-IMP-NUMERIC", subject_id="IMP-001-01")
         document["event"]["implementation"]["spec_ref"] = "SPEC-001"
@@ -629,8 +731,8 @@ class ContextLoopTest(unittest.TestCase):
         self.assertFalse((SCRIPT_DIR / "delivery_index.py").exists())
         references = [
             SCRIPT_DIR.parent / "SKILL.md",
-            SCRIPT_DIR.parent.parent / "dc-proof-resources" / "references" / "workflow-contract.md",
-            SCRIPT_DIR.parent.parent / "dc-proof-resources" / "references" / "glossary.md",
+            SCRIPT_DIR.parent / "references" / "workflow-contract.md",
+            SCRIPT_DIR.parent / "references" / "glossary.md",
         ]
         for path in references:
             content = path.read_text(encoding="utf-8")
@@ -762,7 +864,7 @@ class ContextLoopTest(unittest.TestCase):
 
     def test_implementation_requires_completion_review_before_ready(self) -> None:
         implementation_skill = (SCRIPT_DIR.parent.parent / "dc-implementation-execution" / "SKILL.md").read_text(encoding="utf-8")
-        planning_reference = (SCRIPT_DIR.parent.parent / "dc-proof-resources" / "references" / "implementation-planning.md").read_text(encoding="utf-8")
+        planning_reference = (SCRIPT_DIR.parent.parent / "dc-implementation-execution" / "references" / "implementation-planning.md").read_text(encoding="utf-8")
         self.assertIn("自测前覆盖预检", implementation_skill)
         self.assertIn("自测后程序化完成复核", implementation_skill)
         self.assertIn("自测后 Agent 语义完成复核", implementation_skill)
@@ -785,7 +887,7 @@ class ContextLoopTest(unittest.TestCase):
 
     def test_spec_draft_is_single_schema_validated_source(self) -> None:
         design_skill = (SCRIPT_DIR.parent.parent / "dc-acceptance-design" / "SKILL.md").read_text(encoding="utf-8")
-        workflow_contract = (SCRIPT_DIR.parent.parent / "dc-proof-resources" / "references" / "workflow-contract.md").read_text(encoding="utf-8")
+        workflow_contract = (SCRIPT_DIR.parent / "references" / "workflow-contract.md").read_text(encoding="utf-8")
         self.assertIn("SPEC 事件 YAML 必须先通过事件 Schema 校验", design_skill)
         self.assertIn("render_spec_draft.py", design_skill)
         self.assertIn("禁止手工拼接第二份内容", design_skill)
