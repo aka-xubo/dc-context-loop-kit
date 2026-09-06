@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import hashlib
-import html
 import json
 import re
 from pathlib import Path
@@ -112,7 +111,3 @@ def discover_current_requirement_documents(root: Path) -> dict[str, Path]:
         for path in sorted(root.glob("REQ-*/需求.md"))
         if path.parent.name.startswith("REQ-")
     }
-
-
-def html_escape(value: Any) -> str:
-    return html.escape(str(value), quote=True)

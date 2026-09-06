@@ -739,11 +739,10 @@ class ContextLoopTest(unittest.TestCase):
             self.assertNotIn("delivery_index.py", content, str(path))
             self.assertNotIn("docs/交付证明/<ISSUE-KEY>.md", content, str(path))
 
-    def test_catalog_uses_issue_no_and_keeps_only_markdown_project_index(self) -> None:
+    def test_catalog_uses_issue_no_and_keeps_only_markdown_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "交付证明"
             write_requirement(root / "REQ-001" / "需求.md", requirement_document())
-            (root / "需求清单.html").write_text("obsolete", encoding="utf-8")
             result = subprocess.run(
                 [sys.executable, str(PROOF_SCRIPT_DIR / "render_delivery_review.py"), str(root)],
                 check=False, capture_output=True, text=True,
@@ -751,11 +750,9 @@ class ContextLoopTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             catalog = (root / "需求清单.md").read_text(encoding="utf-8")
             self.assertIn("| REQ | Issue No | 需求状态 | 交付阶段 | 标题 |", catalog)
-            self.assertIn("| [REQ-001](./REQ-001/审核工作台.html) | HTW-1 |", catalog)
-            self.assertFalse((root / "需求清单.html").exists())
-            workbench = (root / "REQ-001" / "审核工作台.html").read_text(encoding="utf-8")
-            self.assertIn('href="../需求清单.md"', workbench)
-            self.assertNotIn("需求清单.html", workbench)
+            self.assertIn("| [REQ-001](./REQ-001/需求.md) | HTW-1 |", catalog)
+            files = sorted(path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file())
+            self.assertEqual(files, ["REQ-001/需求.md", "需求清单.md"])
 
     def test_requirement_validation_rejects_missing_or_invalid_issue_no(self) -> None:
         for issue_no in (None, "htw-1", ["HTW-1", "HTW-2"]):

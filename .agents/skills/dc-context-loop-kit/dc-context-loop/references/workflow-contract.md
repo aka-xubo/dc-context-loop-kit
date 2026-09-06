@@ -26,10 +26,10 @@ docs/交付证明/
     ├── 测试证据.md
     ├── 验收报告.md
     ├── artifacts/
-    └── 审核工作台.html
+    └── 其他交付证据文件
 ```
 
-固定 YAML 数据块是机器真值源；需求清单 Markdown 和各 REQ 审核工作台 HTML 是只读派生视图。
+固定 YAML 数据块是机器真值源；需求清单 Markdown 和各 REQ 目录中的交付材料是只读查看来源。
 
 项目级交付证明只保留 `需求清单.md`；每个 REQ 的 `需求.md` 使用结构化 `issue_no` 关联唯一 Issue No，不再生成或维护 Issue 级索引文件。
 
