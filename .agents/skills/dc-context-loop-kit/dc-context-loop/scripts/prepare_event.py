@@ -961,25 +961,25 @@ def render_acceptance(event: dict[str, Any]) -> str:
         check_ids = item.get("check_ids", [])
         assertion_ids = item.get("assertion_ids", [])
         navigation.append(
-            f"- [`{scenario_id}`](#scn-{scenario_id.lower()}) → "
-            + ", ".join(f"[`{value}`](#chk-{value.lower()})" for value in check_ids)
+            f"- [`{scenario_id}`](#{scenario_id.lower()}) → "
+            + ", ".join(f"[`{value}`](#{value.lower()})" for value in check_ids)
             + " → "
-            + ", ".join(f"[`{value}`](#ast-{value.lower()})" for value in assertion_ids)
+            + ", ".join(f"[`{value}`](#{value.lower()})" for value in assertion_ids)
         )
         drilldown.append(
-            f"<a id=\"scn-{scenario_id.lower()}\"></a>\n### `{scenario_id}`\n\n"
-            f"- CHK：{', '.join(f'[`{value}`](#chk-{value.lower()})' for value in check_ids) or '无'}\n"
-            f"- AST：{', '.join(f'[`{value}`](#ast-{value.lower()})' for value in assertion_ids) or '无'}"
+            f"### {scenario_id}\n\n"
+            f"- CHK：{', '.join(f'[`{value}`](#{value.lower()})' for value in check_ids) or '无'}\n"
+            f"- AST：{', '.join(f'[`{value}`](#{value.lower()})' for value in assertion_ids) or '无'}"
         )
         for check_id in check_ids:
             drilldown.append(
-                f"<a id=\"chk-{check_id.lower()}\"></a>\n#### `{check_id}`\n\n"
-                f"- 覆盖 AST：{', '.join(f'[`{value}`](#ast-{value.lower()})' for value in assertion_ids) or '无'}"
+                f"#### {check_id}\n\n"
+                f"- 覆盖 AST：{', '.join(f'[`{value}`](#{value.lower()})' for value in assertion_ids) or '无'}"
             )
         for assertion_id in assertion_ids:
             result = assertion_results.get(assertion_id, {})
             drilldown.append(
-                f"<a id=\"ast-{assertion_id.lower()}\"></a>\n##### `{assertion_id}`\n\n"
+                f"##### {assertion_id}\n\n"
                 f"- 预期：{display(result.get('expected', '未提供'))}\n"
                 f"- 实际观察：{display(result.get('observed', '未提供'))}\n"
                 f"- 结果：{display(result.get('status', '未提供'))}\n"

@@ -1534,9 +1534,53 @@ class ContextLoopTest(unittest.TestCase):
             content = (output_dir / "EVT-ACC-TRACEABILITY.md").read_text(encoding="utf-8")
             self.assertLess(content.index("## 最终结论"), content.index("## 验收基线"))
             self.assertIn("## 验收导航", content)
-            self.assertIn("(#scn-scn-001)", content)
-            self.assertIn('<a id="scn-scn-001"></a>', content)
+            self.assertIn("[`SCN-001`](#scn-001)", content)
+            self.assertIn("[`CHK-001`](#chk-001)", content)
+            self.assertIn("[`AST-001`](#ast-001)", content)
+            self.assertIn("### SCN-001", content)
+            self.assertIn("#### CHK-001", content)
+            self.assertIn("##### AST-001", content)
+            self.assertNotRegex(content, r"<\s*/?\s*[A-Za-z][^>]*>")
             self.assertIn("evidence_locator", content)
+
+    def test_all_event_comments_are_html_free(self) -> None:
+        cases = [
+            (canonical_requirement_event("EVT-REQ-HTML-FREE"), None),
+            (specification_event("EVT-SPEC-HTML-FREE"), None),
+            (implementation_event("EVT-IMP-HTML-FREE"), relation_specification_event()),
+            (acceptance_event("EVT-ACC-HTML-FREE"), None),
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for document, specification in cases:
+                event_id = document["event"]["event_id"]
+                case_root = root / event_id
+                case_root.mkdir()
+                event_file = case_root / "event.yaml"
+                output_dir = case_root / "out"
+                event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+                command = [
+                    sys.executable,
+                    str(SCRIPT_DIR / "prepare_event.py"),
+                    "--event-file",
+                    str(event_file),
+                    "--issue",
+                    "HTW-1",
+                    "--output-dir",
+                    str(output_dir),
+                ]
+                if specification is not None:
+                    spec_file = case_root / "spec.yaml"
+                    spec_file.write_text(yaml.safe_dump(specification, allow_unicode=True, sort_keys=False), encoding="utf-8")
+                    command.extend(["--spec-file", str(spec_file)])
+                if document["event"]["node"] == "REQ":
+                    requirement_file = case_root / "requirement.md"
+                    write_requirement(requirement_file, requirement_document())
+                    command.extend(["--requirement-file", str(requirement_file)])
+                result = subprocess.run(command, check=False, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                content = (output_dir / f"{event_id}.md").read_text(encoding="utf-8")
+                self.assertNotRegex(content, r"<\s*/?\s*[A-Za-z][^>]*>", event_id)
 
     def assert_satisfied_acceptance_rejected(self, document: dict, expected_error: str) -> None:
         with tempfile.TemporaryDirectory() as temporary:
