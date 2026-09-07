@@ -1,0 +1,89 @@
+{
+  "skill_name": "dc-context-loop",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "继续处理 Deep Crew Issue HTW-1624。最新评论里产品经理补充了登录失败提示要求，开发之前已经做过一次实现和验收。请根据评论时间线判断哪些内容仍然有效，并记录这次变化。",
+      "expected_output": "在读取门禁触发时读取全部评论，识别当前 REQ 与 SPEC 基础快照/后续增量，由模型应用增量形成当前定义，并据此选择后续动作；同一轮节点复用已读取上下文。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "验收发现 SCN-001 已经覆盖错误密码场景，但代码返回了错误的提示文案。继续这个 Issue。",
+      "expected_output": "识别为实现问题，保留当前 REQ/SPEC，修复后形成新的 IMPLEMENTATION 完成事实并等待再次验收。",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "当前业务目标、范围和失败规则不变，但新增一个错误密码场景和对应 AST。继续这个 Issue。",
+      "expected_output": "判断为 SPEC_CHANGE，调用 dc-acceptance-design 相对最新已确认 SPEC 生成增量；不发布新的 REQ。",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "当前 REQ 和 SPEC 都不变，只把实现使用的 JWT 库从 A 换成 B，外部行为不变。继续这个 Issue。",
+      "expected_output": "判断为 IMPLEMENTATION_ONLY，保留当前 REQ/SPEC，进入实现或重新验收。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "根据这个 Issue 的全部评论恢复当前上下文。后一条 SPEC 评论重新给出了一份完整场景集合，并使用了不同的 AST ID。",
+      "expected_output": "阅读完整时间线、本地相关材料和用户最新指令，由模型判断当前适用的 SPEC，区分普通讨论与已确认事实，输出当前上下文、节点和下一步，而不是由脚本按时间自动选择。",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "这是一个新需求，先不要直接写 REQ。请像 Grilling Me 一样读取 Issue 上下文，先记录已知事实，提出当前最重要的问题并等待负责人回答。",
+      "expected_output": "由 dc-context-loop 提供当前 Issue 上下文，调用 dc-grilling 查明事实并提出会改变需求结果的最小问题集；问题明确后直接生成 REQ。",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Issue 中已有 IMPLEMENTATION READY 和完整 commit，但用户只说‘继续’。请继续处理这个 Issue。",
+      "expected_output": "报告实现已 READY，但没有明确验收授权；硬停止等待用户说‘执行验收’或等价指令，不调用验收技能，不生成 RUN/ART/ACC。",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Issue 中已有 IMPLEMENTATION READY 和完整 commit。用户明确说‘执行验收’。",
+      "expected_output": "识别为明确验收授权，进入 ACCEPTANCE，调用 acceptance-verification 和 acceptance-closure，并发布唯一验收结论事件。",
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "已根据当前 REQ 生成 SPEC 草案，请负责人确认。",
+      "expected_output": "在当前对话中提供指向完整 SPEC 草案的可点击本地文件链接，并在用户明确确认前不发布 SPEC 事件。",
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "Issue 中只有 IMPLEMENTATION READY，引用了本地 REQ 和 SPEC 文件，但评论区没有对应的 REQ/SPEC 事件。继续这个 Issue。",
+      "expected_output": "在进入 IMPLEMENTATION 或后续节点前执行线上前置材料检查，识别 Issue 中缺少可解析的 REQ/SPEC 事件；不调用目标节点技能、不生成下游事件，明确报告缺口并要求先补齐上游事件。",
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "Issue 中已有可解析且匹配的 REQ 和已确认 SPEC，用户要求继续开发。",
+      "expected_output": "完成节点前置材料检查后允许进入 IMPLEMENTATION；检查结果应明确说明 REQ/SPEC 在线存在、引用匹配，再调用实现技能。",
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "上一轮已经读取过 Issue 并发布了 REQ；这一轮用户说继续生成 SPEC。",
+      "expected_output": "本轮开始重新调用 dc-issue-intake 完整读取 Issue 和附件，不使用上一轮 Issue context 或评论缓存替代；确认线上 REQ 后，本轮至多调用 SPEC 节点技能。",
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "当前 Issue 没有任何结构化事件，用户要求按完整流程把需求、规格和实现都做完。",
+      "expected_output": "本轮只选择并调用 REQ 节点技能，最多发布一条 REQ 事件；发布动作结束后停止本轮，不在同一轮继续生成 SPEC 或进入 IMPLEMENTATION。",
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "本轮 SPEC 事件发布接口返回 2xx，且当前上下文已经足够进入实现。",
+      "expected_output": "报告 SPEC 发布成功并结束本轮；不在同一轮调用实现技能。下一轮必须重新完整读取 Issue，确认 SPEC 在线存在后再判断是否进入 IMPLEMENTATION；本轮输出只报告事实和下一轮入口。",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deep Crew Grilling"
+  short_description: "在当前对话中澄清交付内容的高影响歧义"
+  default_prompt: "使用 $dc-grilling 复用 dc-context-loop 已提供的当前 Deep Crew Issue 会话上下文，先查事实，只追问会改变当前结果的问题，足够清晰后立即收束并把结果交给目标节点；不要自行调用 dc-issue-intake。"

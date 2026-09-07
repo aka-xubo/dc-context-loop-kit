@@ -1,0 +1,4 @@
+interface:
+  display_name: "开发实现"
+  short_description: "先盘点代码与项目上下文，再制定并执行可验收实现计划"
+  default_prompt: "使用 $dc-implementation-execution 先基于已确认定义、代码结构和项目上下文制定完整实现计划；必要时询问未决决策，再默认测试先行完成真实实现。"

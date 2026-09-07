@@ -1,0 +1,117 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: delivery-proof/acceptance-matrix.schema.yaml
+title: Delivery Proof Acceptance Matrix
+type: object
+additionalProperties: false
+required: [document_type, requirement_ref, acceptance_matrix]
+properties:
+  document_type: {const: acceptance_matrix}
+  requirement_ref:
+    type: object
+    required: [requirement_id]
+    additionalProperties: false
+    properties:
+      requirement_id: {type: string, pattern: '^REQ-[A-Za-z0-9_-]+$'}
+  acceptance_scenarios_ref: {type: object, additionalProperties: true}
+  acceptance_matrix:
+    type: object
+    additionalProperties: false
+    required: [status, checks, confirmation]
+    properties:
+      status: {enum: [DRAFT, CONFIRMED]}
+      checks:
+        type: array
+        minItems: 1
+        items:
+          type: object
+          required: [id, scenario_ids, dependency_ids, verification_type, responsibility, assertions, required, blocking]
+          additionalProperties: false
+          properties:
+            id: {type: string, pattern: '^CHK-[A-Za-z0-9_-]+$'}
+            scenario_ids: {type: array, minItems: 1}
+            dependency_ids:
+              type: array
+              items: {type: string, pattern: '^DEP-[A-Za-z0-9_-]+$'}
+            verification_type: {enum: [unit, api, ui, e2e]}
+            responsibility: {type: string, minLength: 1}
+            assertions:
+              type: array
+              minItems: 1
+              items: {$ref: '#/$defs/assertion'}
+            required: {type: boolean}
+            blocking: {type: boolean}
+            evidence_requirements:
+              type: object
+              additionalProperties: false
+              properties:
+                required_artifact_types:
+                  type: array
+                  items: {enum: [command_output, api_exchange, state_observation, screenshot]}
+            external_verification:
+              oneOf:
+                - {type: 'null'}
+                - {$ref: '#/$defs/external_verification'}
+      confirmation: {oneOf: [{type: 'null'}, {type: object, additionalProperties: true}]}
+$defs:
+  assertion:
+    type: object
+    additionalProperties: false
+    required: [id, description]
+    properties:
+      id: {type: string, pattern: '^AST-[A-Za-z0-9_-]+$'}
+      description: {type: string, minLength: 1}
+      outcome_refs:
+        type: array
+        minItems: 1
+        items: {type: string, pattern: '^SCN-[A-Za-z0-9_-]+\.THEN-[A-Za-z0-9_-]+$'}
+      assertion_type: {enum: [semantic, predicate]}
+      ontology_refs:
+        type: array
+        items: {type: string, minLength: 1}
+      predicate: {$ref: '#/$defs/predicate'}
+    allOf:
+      - if:
+          properties: {assertion_type: {const: predicate}}
+          required: [assertion_type]
+        then: {required: [predicate]}
+      - if:
+          properties: {assertion_type: {const: semantic}}
+          required: [assertion_type]
+        then: {not: {required: [predicate]}}
+  predicate:
+    type: object
+    additionalProperties: false
+    required: [operator, left, right]
+    properties:
+      operator: {enum: [eq, ne, gt, gte, lt, lte, in, not_in, contains]}
+      left: {$ref: '#/$defs/operand'}
+      right: {$ref: '#/$defs/operand'}
+      unit: {type: string, minLength: 1}
+  operand:
+    oneOf:
+      - type: object
+        additionalProperties: false
+        required: [fact]
+        properties:
+          fact: {type: string, pattern: '^[A-Za-z][A-Za-z0-9_.-]*$'}
+      - type: object
+        additionalProperties: false
+        required: [value]
+        properties:
+          value: {}
+      - type: object
+        additionalProperties: false
+        required: [operation, operands]
+        properties:
+          operation: {enum: [add, subtract, multiply, divide, count]}
+          operands:
+            type: array
+            minItems: 1
+            items: {$ref: '#/$defs/operand'}
+  external_verification:
+    type: object
+    additionalProperties: true
+    required: [provider, mode]
+    properties:
+      provider: {type: string, pattern: '^[a-z0-9][a-z0-9._-]*$'}
+      mode: {enum: [stub, contract, real_test_app]}

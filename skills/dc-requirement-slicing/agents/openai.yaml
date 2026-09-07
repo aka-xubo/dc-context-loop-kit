@@ -1,0 +1,5 @@
+interface:
+  display_name: "需求切片"
+  short_description: "将总需求拆成可独立验收的 REQ 清单"
+  default_prompt: "使用 $dc-requirement-slicing 将当前总需求拆成可独立进入交付证明流程的需求清单。"
+
