@@ -43,10 +43,10 @@ Issue 是协作历史的事实来源。使用完整的 Issue URL、UUID 或 Issu
 
 ## 技能包架构
 
-复制或分发时，保持 `.agents/skills/dc-context-loop-kit` 的目录结构不变。技能之间的相对引用依赖这个结构。
+根目录 `skills/` 是本仓库唯一的技能源码目录。每个 `dc-*` 子目录都是一个可独立发现的技能；技能之间通过包内相对关系、脚本自身位置或显式路径参数定位资源，不依赖仓库的绝对路径。
 
 ```text
-dc-context-loop-kit/
+skills/
 ├── dc-context-loop/                 总协调器、路由、事件和共享交付证明工具
 ├── dc-issue-intake/                 Issue、评论和附件的完整读取
 ├── dc-requirement-slicing/          REQ 归类与需求定义
@@ -56,6 +56,22 @@ dc-context-loop-kit/
 ├── dc-acceptance-closure/            审查证据，逐 AST 裁决验收
 └── dc-grilling/                     当前对话中的按需澄清
 ```
+
+安装时由使用者根据 Agent 宿主协议选择 skills 根目录，例如 `.agents/skills/`、`.codex/skills/`、`.claude/skills/` 或其他约定位置，然后将 `skills/` 下的各个 `dc-*` 目录直接平铺到目标根目录：
+
+```text
+<host-skills-root>/
+├── dc-context-loop/
+├── dc-issue-intake/
+├── dc-requirement-slicing/
+├── dc-acceptance-design/
+├── dc-implementation-execution/
+├── dc-acceptance-verification/
+├── dc-acceptance-closure/
+└── dc-grilling/
+```
+
+不要在目标 skills 根目录与 `dc-*` 技能之间增加项目包装层。本仓库自举时可把根 `skills/` 中的技能平铺安装到本地 `.agents/skills/`；该安装入口由使用者维护并被 Git 忽略，不是第二份源码。
 
 ### 总协调器：`dc-context-loop`
 
@@ -191,7 +207,7 @@ REQ 始终发布当时的完整内容。SPEC 首次建立或需要重建基线�
 | Git commit | 固定一次实现实际对应的代码和文件版本 | 不能用当前未提交工作区代表已交付实现 |
 | RUN/ART | 保存本次验收的实际观察和可复核证据 | 不能用测试名、退出码或一句“全部通过”替代 |
 
-事件发布通常由脚本根据结构化 YAML 生成人类摘要和机器附件。README 只解释关系；详细字段、校验规则和发布要求请以 [事件契约](.agents/skills/dc-context-loop-kit/dc-context-loop/references/event-contract.md) 与 [事件 Schema](.agents/skills/dc-context-loop-kit/dc-context-loop/contracts/event.schema.yaml) 为准。
+事件发布通常由脚本根据结构化 YAML 生成人类摘要和机器附件。README 只解释关系；详细字段、校验规则和发布要求请以 [事件契约](skills/dc-context-loop/references/event-contract.md) 与 [事件 Schema](skills/dc-context-loop/contracts/event.schema.yaml) 为准。
 
 ## 常见门禁与处理方式
 
@@ -215,22 +231,22 @@ REQ 始终发布当时的完整内容。SPEC 首次建立或需要重建基线�
 
 先看：
 
-- [技能包目录说明](.agents/skills/dc-context-loop-kit/README.md)
-- [总协调器技能](.agents/skills/dc-context-loop-kit/dc-context-loop/SKILL.md)
-- [Issue Intake](.agents/skills/dc-context-loop-kit/dc-issue-intake/SKILL.md)
-- [需求切分](.agents/skills/dc-context-loop-kit/dc-requirement-slicing/SKILL.md)
-- [验收设计](.agents/skills/dc-context-loop-kit/dc-acceptance-design/SKILL.md)
-- [实现执行](.agents/skills/dc-context-loop-kit/dc-implementation-execution/SKILL.md)
-- [验收验证](.agents/skills/dc-context-loop-kit/dc-acceptance-verification/SKILL.md)
-- [验收收口](.agents/skills/dc-context-loop-kit/dc-acceptance-closure/SKILL.md)
+- [项目协作与自举规则](AGENTS.md)
+- [总协调器技能](skills/dc-context-loop/SKILL.md)
+- [Issue Intake](skills/dc-issue-intake/SKILL.md)
+- [需求切分](skills/dc-requirement-slicing/SKILL.md)
+- [验收设计](skills/dc-acceptance-design/SKILL.md)
+- [实现执行](skills/dc-implementation-execution/SKILL.md)
+- [验收验证](skills/dc-acceptance-verification/SKILL.md)
+- [验收收口](skills/dc-acceptance-closure/SKILL.md)
 
 需要查规则时：
 
-- [术语表](.agents/skills/dc-context-loop-kit/dc-context-loop/references/glossary.md)：对象层级、状态和证据关系。
-- [流程契约](.agents/skills/dc-context-loop-kit/dc-context-loop/references/workflow-contract.md)：节点门禁、循环和 RUN/ART 规则。
-- [事件契约](.agents/skills/dc-context-loop-kit/dc-context-loop/references/event-contract.md)：事件发布、快照/增量和结构化附件。
-- [实现计划模板](.agents/skills/dc-context-loop-kit/dc-implementation-execution/templates/实现计划.md)：本地实现执行契约。
-- [实现规划参考](.agents/skills/dc-context-loop-kit/dc-implementation-execution/references/implementation-planning.md)：上下文盘点、切片和完成前复核。
+- [术语表](skills/dc-context-loop/references/glossary.md)：对象层级、状态和证据关系。
+- [流程契约](skills/dc-context-loop/references/workflow-contract.md)：节点门禁、循环和 RUN/ART 规则。
+- [事件契约](skills/dc-context-loop/references/event-contract.md)：事件发布、快照/增量和结构化附件。
+- [实现计划模板](skills/dc-implementation-execution/templates/实现计划.md)：本地实现执行契约。
+- [实现规划参考](skills/dc-implementation-execution/references/implementation-planning.md)：上下文盘点、切片和完成前复核。
 
 需要运行工具时：
 
@@ -239,10 +255,12 @@ REQ 始终发布当时的完整内容。SPEC 首次建立或需要重建基线�
 - `dc-context-loop/scripts/validate_delivery_proof.py`：校验本地交付证明。
 - `dc-context-loop/scripts/render_delivery_review.py`：渲染或检查交付证明视图。
 
-这些脚本的完整路径分别是：
+在本仓库源码中，脚本目录是：
 
 ```text
-.agents/skills/dc-context-loop-kit/dc-context-loop/scripts/
+skills/dc-context-loop/scripts/
 ```
+
+安装后则从 `<host-skills-root>/dc-context-loop/scripts/` 定位，不应写死某个宿主目录。
 
 使用脚本前，先阅读对应技能说明和 `--help`；临时材料应放入由 `operation_workspace.py` 创建的操作工作区，不能把系统临时目录或项目根目录当作交付证据目录。

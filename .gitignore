@@ -1,5 +1,8 @@
 .local/
 
+# Agent-specific local installation; canonical skill sources live in /skills.
+.agents/skills/
+
 # Delivery proof definitions, generated views, and local evidence stay in the Issue.
 docs/交付证明/
 

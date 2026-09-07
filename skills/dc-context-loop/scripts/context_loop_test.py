@@ -15,7 +15,6 @@ from typing import Any
 import yaml
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parents[4]
 PROOF_SCRIPT_DIR = SCRIPT_DIR
 KIT_ROOT = SCRIPT_DIR.parent.parent
 LEGACY_RESOURCE_DIR_NAME = "dc-" + "proof-resources"
@@ -388,15 +387,62 @@ class ContextLoopTest(unittest.TestCase):
                 scanned.append(str(path.relative_to(KIT_ROOT)))
         self.assertEqual(scanned, [], f"活跃技能包仍包含旧资源路径: {scanned}")
 
+    def test_active_skill_package_has_no_host_install_path_references(self) -> None:
+        forbidden_fragments = (
+            "." + "agents/skills",
+            "." + "codex/skills",
+            "." + "claude/skills",
+            "/" + "Users/",
+            "dc-context-" + "loop-kit",
+        )
+        findings = []
+        for path in KIT_ROOT.rglob("*"):
+            if not path.is_file() or path.suffix.lower() not in {".md", ".py", ".json", ".yaml", ".yml"}:
+                continue
+            content = path.read_text(encoding="utf-8")
+            matches = [fragment for fragment in forbidden_fragments if fragment in content]
+            if matches:
+                findings.append((str(path.relative_to(KIT_ROOT)), matches))
+        self.assertEqual(findings, [], f"活跃技能包仍绑定宿主安装路径: {findings}")
+
+    def test_repository_tracks_one_source_tree_and_documents_flat_installation(self) -> None:
+        raw_root = os.environ.get("DC_LOOP_PROJECT_ROOT")
+        if not raw_root:
+            self.skipTest("独立复制包不携带仓库级源码布局")
+        root = Path(raw_root).expanduser().resolve()
+        readme = (root / "README.md").read_text(encoding="utf-8")
+        agents = (root / "AGENTS.md").read_text(encoding="utf-8")
+        ignore = (root / ".gitignore").read_text(encoding="utf-8")
+        legacy_wrapper = "." + "agents/skills/" + "dc-context-" + "loop-kit"
+        self.assertNotIn(legacy_wrapper, readme)
+        self.assertIn("根目录 `skills/`", readme)
+        self.assertIn("平铺", readme)
+        self.assertIn("](skills/", readme)
+        self.assertIn("根目录 `skills/` 是唯一规范源码", agents)
+        local_install_root = "." + "agents/skills/"
+        self.assertIn(local_install_root, ignore)
+        tracked = subprocess.run(
+            ["git", "-C", str(root), "ls-files"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+        self.assertTrue(any(path.startswith("skills/") for path in tracked))
+        self.assertFalse(any(path.startswith(local_install_root) for path in tracked))
+
     def test_internalized_resources_match_saved_baseline_content(self) -> None:
-        baseline = PROJECT_ROOT / ".local/dc-loop/tmp/htw-1791-imp-001/proof-before.sha256"
-        if not baseline.exists():
+        raw_baseline = os.environ.get("DC_LOOP_MIGRATION_BASELINE")
+        if not raw_baseline:
             self.skipTest("独立复制包不携带仓库级迁移基线")
+        baseline = Path(raw_baseline).expanduser().resolve()
+        self.assertTrue(baseline.is_file(), f"显式迁移基线不存在: {baseline}")
         expected = {}
         for line in baseline.read_text(encoding="utf-8").splitlines():
             digest, _, source = line.partition("  ")
-            legacy_root = Path(".agents/skills/dc-context-loop-kit") / LEGACY_RESOURCE_DIR_NAME
-            expected[str(Path(source).relative_to(legacy_root))] = digest
+            source_parts = Path(source).parts
+            self.assertIn(LEGACY_RESOURCE_DIR_NAME, source_parts, source)
+            marker = source_parts.index(LEGACY_RESOURCE_DIR_NAME)
+            expected[str(Path(*source_parts[marker + 1 :]))] = digest
         self.assertEqual(set(expected), set(INTERNALIZED_RESOURCES))
         for source_name, target_relative in INTERNALIZED_RESOURCES.items():
             target = KIT_ROOT / target_relative
@@ -412,29 +458,36 @@ class ContextLoopTest(unittest.TestCase):
         if os.environ.get("DC_LOOP_SKIP_INDEPENDENT_COPY_TEST"):
             self.skipTest("避免独立复制测试递归")
         with tempfile.TemporaryDirectory() as temporary:
-            copy_root = Path(temporary) / "dc-context-loop-kit"
-            shutil.copytree(KIT_ROOT, copy_root)
-            self.assertFalse((copy_root / LEGACY_RESOURCE_DIR_NAME).exists())
-            workspace_script = copy_root / "dc-context-loop/scripts/operation_workspace.py"
-            create = subprocess.run(
-                [sys.executable, str(workspace_script), "create", "--worktree-root", str(copy_root), "--operation-id", "copy-test"],
-                check=False, capture_output=True, text=True,
-            )
-            self.assertEqual(create.returncode, 0, create.stderr)
-            operation = copy_root / ".local/dc-loop/tmp/copy-test"
-            env = os.environ.copy()
-            env["DC_LOOP_SKIP_INDEPENDENT_COPY_TEST"] = "1"
-            run = subprocess.run(
-                [sys.executable, str(copy_root / "dc-context-loop/scripts/context_loop_test.py")],
-                check=False, capture_output=True, text=True, cwd=copy_root, env=env,
-            )
-            self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-            cleanup = subprocess.run(
-                [sys.executable, str(workspace_script), "cleanup", "--worktree-root", str(copy_root), "--operation-id", "copy-test", "--terminal-status", "SUCCESS"],
-                check=False, capture_output=True, text=True,
-            )
-            self.assertEqual(cleanup.returncode, 0, cleanup.stderr)
-            self.assertFalse(operation.exists())
+            install_roots = [
+                Path(temporary) / "agent-a" / "skills",
+                Path(temporary) / "nested" / "runtime-b" / "custom-skills-root",
+            ]
+            for index, copy_root in enumerate(install_roots, start=1):
+                shutil.copytree(KIT_ROOT, copy_root)
+                self.assertFalse((copy_root / LEGACY_RESOURCE_DIR_NAME).exists())
+                workspace_script = copy_root / "dc-context-loop/scripts/operation_workspace.py"
+                operation_id = f"copy-test-{index}"
+                create = subprocess.run(
+                    [sys.executable, str(workspace_script), "create", "--worktree-root", str(copy_root), "--operation-id", operation_id],
+                    check=False, capture_output=True, text=True,
+                )
+                self.assertEqual(create.returncode, 0, create.stderr)
+                operation = copy_root / ".local/dc-loop/tmp" / operation_id
+                env = os.environ.copy()
+                env["DC_LOOP_SKIP_INDEPENDENT_COPY_TEST"] = "1"
+                env.pop("DC_LOOP_PROJECT_ROOT", None)
+                env.pop("DC_LOOP_MIGRATION_BASELINE", None)
+                run = subprocess.run(
+                    [sys.executable, str(copy_root / "dc-context-loop/scripts/context_loop_test.py")],
+                    check=False, capture_output=True, text=True, cwd=copy_root, env=env,
+                )
+                self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+                cleanup = subprocess.run(
+                    [sys.executable, str(workspace_script), "cleanup", "--worktree-root", str(copy_root), "--operation-id", operation_id, "--terminal-status", "SUCCESS"],
+                    check=False, capture_output=True, text=True,
+                )
+                self.assertEqual(cleanup.returncode, 0, cleanup.stderr)
+                self.assertFalse(operation.exists())
 
     def test_new_numeric_implementation_requires_direct_spec_ref(self) -> None:
         document = implementation_event("EVT-IMP-NUMERIC", subject_id="IMP-001-01")

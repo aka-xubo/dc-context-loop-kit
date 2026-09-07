@@ -206,7 +206,7 @@ event:
         check_refs: [CHK-EVENT-CONTRACT-DOCS-001]
         assertion_refs: [AST-EVENT-CONTRACT-DOCS-001]
     change_surface:
-      production_files: [.agents/skills/dc-context-loop-kit/dc-context-loop/references/event-contract.md]
+      production_files: [skills/dc-context-loop/references/event-contract.md]
       test_files: []
       scripts: []
       new_interfaces: []

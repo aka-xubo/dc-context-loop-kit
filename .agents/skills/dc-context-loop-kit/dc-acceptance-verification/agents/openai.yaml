@@ -1,4 +1,0 @@
-interface:
-  display_name: "验收验证"
-  short_description: "由验收角色执行已确认矩阵并记录可复核 RUN/ART"
-  default_prompt: "使用 $dc-acceptance-verification 按已确认矩阵验证 CHK/AST，并记录可定位的 RUN/ART。"

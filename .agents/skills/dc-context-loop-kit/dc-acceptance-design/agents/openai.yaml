@@ -1,4 +1,0 @@
-interface:
-  display_name: "验收设计"
-  short_description: "从需求设计并确认验收场景与验收矩阵"
-  default_prompt: "使用 $dc-acceptance-design 为当前需求设计包含 SCN、CHK 和 AST 的 SPEC（首次建立时完整，后续变化默认增量），并等待一次人工确认同时确认场景与矩阵。"
