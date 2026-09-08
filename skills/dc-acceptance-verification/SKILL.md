@@ -17,28 +17,21 @@ description: 在实现计划 READY 后，由验收角色执行当前 CHK 的真�
 
 验收脚本和回归测试必须通过 `operation_workspace.py exec` 启动；直接运行含有临时文件逻辑的测试入口或依赖系统默认 `tempfile` 目录的命令视为无效执行。验收产出的原始输出、RUN/ART 草稿和缓存只能保存在该 operation workspace。
 
-## 线上证据发布协议
+## 验收材料交接与发布结果协议
 
-验收证据的持久化顺序固定为“生成原始证据 → 上传 Issue 评论/附件 → 线上读取确认 → 生成最终 ACCEPTANCE 事件 → cleanup”。验收者不得把本地路径、测试退出码或人工摘要当作线上证据定位。
+验收验证先在本地生成原始证据和结构化 RUN/ART，再交给 `dc-acceptance-closure` 形成验收裁决候选。总协调器随后冻结最终 ACCEPTANCE comment、机器 YAML 和证据附件，并通过一次 `multica issue comment add` 调用将它们作为同一验收操作提交到当前 Issue。发布后不得修改同一批材料；内容需要调整时必须开始新的验收操作。
 
-上传时必须将以下材料作为同一验收操作的一部分提交到当前 Issue：
+提交材料包括：
 
 - 原始命令输出、请求响应、状态观察或视觉证据文件；
 - 包含 RUN、ART 和逐 AST 结果的结构化验收材料；
 - 最终 ACCEPTANCE 评论及其机器 YAML 附件。
 
-上传每个材料后，必须通过 Issue API/CLI 下载或读取并比对内容，记录线上评论 ID、附件 ID、文件名和可访问定位。任一上传或读取失败都必须停止收口，报告 `BLOCKED` 或 `INCOMPLETE`，不得继续 cleanup，也不得生成 `SATISFIED`。
+发布结果只依据本次 `multica issue comment add` 调用结果：API 返回 2xx 且 CLI 命令成功时判定发布成功；API 返回非 2xx 或 CLI 命令失败时判定发布失败；超时、无响应或无法判断调用结果时判定结果未知。不假设 Deep Crew 提供额外业务状态码、材料批次、幂等键或其他未由当前 CLI 暴露的能力。
 
-线上读取确认完成后，才允许执行：
+不执行发布后的 Issue/附件读取或线上线下内容比对。调用成功响应中已有的 comment ID、attachment ID、文件名和定位可以作为接口回执记录，但不与本地临时文件做内容匹配，也不构成发布成功的附加门禁。发布失败或结果未知时，不得声明本次验收操作为 `SATISFIED`；应如实报告发布失败或结果未知，并按实际终态执行 cleanup。
 
-```bash
-python3 <kit-dir>/dc-context-loop/scripts/operation_workspace.py cleanup \\
-  --worktree-root <repository.worktree_root> \\
-  --operation-id <operation-id> \\
-  --terminal-status SUCCESS
-```
-
-cleanup 只删除本地临时材料，不删除或覆盖 Issue 评论、附件和历史事件。若 cleanup 失败，验收结果只能报告清理阻塞，不能宣称验收操作完成。
+cleanup 只删除本地临时材料，不删除或覆盖 Issue 评论、附件和历史事件。成功、失败、阻塞或中止均调用 `operation_workspace.py cleanup` 并传入对应 `terminal-status`；若 cleanup 失败，只能报告清理阻塞，不能宣称验收操作完成。
 
 每个正式 RUN 同时填写 `check_refs` 和 `assertion_refs`。每个 `PASSED` AST 必须在关联 ART 中保存非空 `expected`、`observed`、`status: PASSED` 和可解析、可定位的 `evidence_locator`。先保存原始命令输出、请求响应或状态查询结果，再填写 ART 摘要；不得以“全部通过”、测试名或截图代替逐 AST 实际观察。
 

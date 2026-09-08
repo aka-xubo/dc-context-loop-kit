@@ -1000,12 +1000,18 @@ class ContextLoopTest(unittest.TestCase):
     def test_event_publication_uses_displayed_body_and_status_without_post_read(self) -> None:
         loop_skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
         implementation_skill = (SCRIPT_DIR.parent.parent / "dc-implementation-execution" / "SKILL.md").read_text(encoding="utf-8")
+        verification_skill = (SCRIPT_DIR.parent.parent / "dc-acceptance-verification" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("事件发布前，先在当前 Agent 上下文中完整展示人类摘要、事件标识和附件引用", loop_skill)
         self.assertIn("实际上传正文必须复用已展示的同一内容", loop_skill)
         self.assertIn("2xx 判定成功，非 2xx 判定失败，超时或无响应判定结果未知", loop_skill)
         self.assertIn("不执行发布确认后的 Issue 重读", loop_skill)
         self.assertIn("发布 API 的正文必须复用同一内容", implementation_skill)
         self.assertIn("发布结果只依据 API 状态码分类，不在发布后重新读取 Issue", implementation_skill)
+        self.assertIn("发布结果只依据本次 `multica issue comment add` 调用结果", verification_skill)
+        self.assertIn("不执行发布后的 Issue/附件读取或线上线下内容比对", verification_skill)
+        self.assertIn("发布失败或结果未知时，不得声明本次验收操作为 `SATISFIED`", verification_skill)
+        self.assertNotIn("线上读取确认", verification_skill)
+        self.assertNotIn("下载或读取并比对内容", verification_skill)
         self.assertIn("只有用户提供或确认唯一 Issue 标识后才能执行 intake", loop_skill)
         self.assertIn("确认前不得调用 Issue 读取 API", loop_skill)
 
