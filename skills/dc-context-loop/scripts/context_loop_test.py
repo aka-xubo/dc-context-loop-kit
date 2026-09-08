@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import shutil
@@ -318,7 +319,7 @@ def acceptance_event(
         "req_completion_impact": "NONE" if mode == "targeted" else "ELIGIBLE",
         "repository": {"worktree_root": "/tmp/example-worktree", "git_toplevel": "/tmp/example-worktree"},
         "git_commit": git_commit,
-        "runs": [{"id": run_id, "phase": "api_verification", "check_refs": ["CHK-001"], "assertion_refs": ["AST-001"], "status": "PASSED"}],
+        "runs": [{"id": run_id, "execution_type": "api", "purpose": "feature_verification", "scope": "focused", "check_refs": ["CHK-001"], "assertion_refs": ["AST-001"], "status": "PASSED"}],
         "artifacts": [{"id": artifact_id, "type": "api_exchange", "location": f"artifacts/{run_id}.json"}],
         "assertion_results": [{"assertion_id": "AST-001", "expected": "请求被拒绝", "observed": "返回 401", "status": "PASSED", "artifact_refs": [artifact_id], "evidence_locator": "response:1"}],
         "traceability": [{"scenario_id": "SCN-001", "check_ids": ["CHK-001"], "assertion_ids": ["AST-001"]}],
@@ -337,6 +338,16 @@ def acceptance_event(
             "impact": {"affected_ids": ["REQ-001"], "next_actions": []},
         },
     }
+
+
+def load_script_module(name: str, path: Path) -> Any:
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"无法加载脚本模块: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def implementation_plan_document() -> dict:
@@ -1571,6 +1582,58 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("AST-001", content)
             self.assertIn("targeted", content)
             self.assertIn("单次验收", content)
+
+    def test_acceptance_run_requires_three_orthogonal_fields_and_rejects_phase(self) -> None:
+        for field in ("execution_type", "purpose", "scope"):
+            document = acceptance_event(f"EVT-ACC-MISSING-{field.upper()}")
+            del document["event"]["acceptance"]["runs"][0][field]
+            self.assert_satisfied_acceptance_rejected(document, field)
+
+        invalid = acceptance_event("EVT-ACC-INVALID-RUN-DIMENSION")
+        invalid["event"]["acceptance"]["runs"][0]["execution_type"] = "shell"
+        self.assert_satisfied_acceptance_rejected(invalid, "execution_type")
+
+        legacy = acceptance_event("EVT-ACC-LEGACY-PHASE")
+        legacy["event"]["acceptance"]["runs"][0]["phase"] = "api_verification"
+        self.assert_satisfied_acceptance_rejected(legacy, "phase")
+
+    def test_run_contracts_define_orthogonal_dimensions(self) -> None:
+        evidence_schema = yaml.safe_load((KIT_ROOT / "dc-acceptance-verification/contracts/test-evidence.schema.yaml").read_text(encoding="utf-8"))
+        evidence_run = evidence_schema["properties"]["test_evidence"]["properties"]["runs"]["items"]
+        acceptance_schema = yaml.safe_load((KIT_ROOT / "dc-context-loop/contracts/event.schema.yaml").read_text(encoding="utf-8"))
+        acceptance_run = acceptance_schema["$defs"]["acceptance_result"]["properties"]["runs"]["items"]
+        expected = {
+            "execution_type": ["unit", "api", "ui", "e2e", "app_start", "cleanup"],
+            "purpose": ["feature_verification", "regression", "test_data_management"],
+            "scope": ["focused", "module", "impacted", "full"],
+        }
+        for run in (evidence_run, acceptance_run):
+            self.assertTrue(set(expected).issubset(run["required"]))
+            self.assertNotIn("phase", run["required"])
+            self.assertTrue(all(run["properties"][key]["enum"] == values for key, values in expected.items()))
+            self.assertIn({"required": ["phase"]}, run["not"]["anyOf"])
+
+    def test_regression_purpose_does_not_grant_ast_coverage(self) -> None:
+        validator = load_script_module("validate_delivery_proof_for_run_model", SCRIPT_DIR / "validate_delivery_proof.py")
+        digests = {"requirement": "req", "scenarios": "scn", "matrix": "matrix"}
+        regression = {
+            "id": "RUN-REGRESSION",
+            "execution_type": "unit",
+            "purpose": "regression",
+            "scope": "impacted",
+            "check_refs": [],
+            "assertion_refs": [],
+            "supporting_run_refs": [],
+            "artifact_refs": ["ART-REGRESSION"],
+            "definition_digests": digests,
+            "result": "PASSED",
+        }
+        evidence = {"git_commit": "a" * 40, "definition_digests": digests, "runs": [regression]}
+        self.assertEqual(validator.acceptance_eligible_runs(evidence, digests), [])
+
+        regression["check_refs"] = ["CHK-001"]
+        regression["assertion_refs"] = ["AST-001"]
+        self.assertEqual(validator.acceptance_eligible_runs(evidence, digests), [regression])
 
     def test_acceptance_renders_conclusion_first_and_markdown_traceability(self) -> None:
         document = acceptance_event("EVT-ACC-TRACEABILITY")

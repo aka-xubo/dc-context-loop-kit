@@ -280,7 +280,9 @@ event:
     git_commit: 0000000000000000000000000000000000000000
     runs:
       - id: RUN-001
-        phase: real_test_app
+        execution_type: e2e
+        purpose: feature_verification
+        scope: focused
         check_refs: [CHK-EVENT-CONTRACT-DOCS-001]
         assertion_refs: [AST-EVENT-CONTRACT-DOCS-001]
         status: BLOCKED

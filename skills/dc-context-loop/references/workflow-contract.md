@@ -64,7 +64,7 @@ Issue intake 按关键动作触发，而不是每轮固定触发：首次处理�
 
 `测试证据.md` 只描述本次验收动作，并在顶层保存本次使用的完整 `git_commit`。RUN 不保存逐条代码版本；每次新的实现交付都单独产生本次验收材料。
 
-有效验收 RUN 必须是 `PASSED`、有 ART，并匹配当前三个定义摘要。正式 RUN 同时使用 `check_refs` 和 `assertion_refs` 明确目标；两者都为空的 RUN 是 REQ 级辅助执行，只能被正式 RUN 通过 `supporting_run_refs` 引用。只有必需阻断 CHK 的全部 AST 都被有效 PASSED 正式 RUN 覆盖，该 CHK 才算通过。TDD RED/GREEN 是实现过程，不属于正式验收证据；完成实现并提交后，聚焦单元验证使用 `unit_verification`。
+有效验收 RUN 必须是 `PASSED`、有 ART，并匹配当前三个定义摘要。RUN 使用 `execution_type`、`purpose` 和 `scope` 分别表达入口、目的和覆盖范围；正式 RUN 同时使用 `check_refs` 和 `assertion_refs` 明确目标；两者都为空的 RUN 是 REQ 级辅助执行，只能被正式 RUN 通过 `supporting_run_refs` 引用。只有必需阻断 CHK 的全部 AST 都被有效 PASSED 正式 RUN 覆盖，该 CHK 才算通过。TDD RED/GREEN 是实现过程，不属于正式验收证据；完成实现并提交后的聚焦单元验证可使用 `execution_type: unit`、`purpose: feature_verification`、`scope: focused`。
 
 验收报告的 `scenario_results` 只保存已经成立的场景裁决：
 

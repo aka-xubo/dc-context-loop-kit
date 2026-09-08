@@ -42,6 +42,8 @@ cleanup 只删除本地临时材料，不删除或覆盖 Issue 评论、附件�
 
 每个正式 RUN 同时填写 `check_refs` 和 `assertion_refs`。每个 `PASSED` AST 必须在关联 ART 中保存非空 `expected`、`observed`、`status: PASSED` 和可解析、可定位的 `evidence_locator`。先保存原始命令输出、请求响应或状态查询结果，再填写 ART 摘要；不得以“全部通过”、测试名或截图代替逐 AST 实际观察。
 
+每个 RUN 还必须同时填写三个正交字段：`execution_type`（`unit | api | ui | e2e | app_start | cleanup`）、`purpose`（`feature_verification | regression | test_data_management`）和 `scope`（`focused | module | impacted | full`）。旧 `phase` 不再接受，也不从命令或摘要推断回填。`purpose: regression` 只说明执行目的；除非该 RUN 通过 `check_refs`、`assertion_refs` 和 ART 提供直接观察，否则不能产生 AST 覆盖。
+
 对 `assertion_type: predicate` 的 AST，ART 还必须保存 `evaluation.observations`，键名与矩阵 predicate 的 `fact` 一致。由 validator 重算结果：计算为真只能记 `PASSED`，计算为假只能记 `FAILED`；无法获得事实值则记录 `BLOCKED` 或退回验收设计。`expected`、`observed` 和 `evidence_locator` 仍然必须填写，便于人复核事实来源。
 
 按观察对象选择 ART：

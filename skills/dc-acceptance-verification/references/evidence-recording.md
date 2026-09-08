@@ -22,7 +22,9 @@ test_evidence:
       check_refs: [CHK-001]
       assertion_refs: [AST-001]
       supporting_run_refs: []
-      phase: unit_verification
+      execution_type: unit
+      purpose: feature_verification
+      scope: focused
       command: go test ./internal/project -run TestCreateProject -count=1 -v
       environment: local-test
       started_at: "2026-08-04T09:00:00+09:00"
@@ -34,7 +36,11 @@ test_evidence:
       definition_digests: {requirement: "...", scenarios: "...", matrix: "..."}
 ```
 
-允许 phase：`unit_verification | app_start | api_verification | ui_verification | regression | cleanup`。
+执行类型 `execution_type`：`unit | api | ui | e2e | app_start | cleanup`。
+
+测试目的 `purpose`：`feature_verification | regression | test_data_management`。
+
+覆盖范围 `scope`：`focused | module | impacted | full`。
 
 允许 result：`PASSED | FAILED | BLOCKED`。
 
@@ -46,7 +52,8 @@ test_evidence:
 - environment、started_at 和 command 非空。
 - external_verification 始终存在；非外部 RUN 为 null。
 - TDD RED/GREEN 只属于实现过程，不写入正式测试证据。
-- 实现完成并提交后的聚焦单元验证使用 `phase: unit_verification`；跨功能范围的验证使用 `phase: regression`。
+- RUN 必须同时填写 `execution_type`、`purpose` 和 `scope`；三者正交组合，旧 `phase` 字段会被拒绝。
+- 实现完成并提交后的聚焦单元验证可记录为 `execution_type: unit`、`purpose: feature_verification`、`scope: focused`；跨功能范围的回归可记录为 `purpose: regression` 并按实际入口和范围填写其余两个字段。
 - PASSED RUN 的退出码为 0。
 - CHK 只有在其全部 AST 都被有效 PASSED 正式 RUN 覆盖时才算通过；构建、类型检查、全量回归、清理等辅助 RUN 不得为了参与验收而虚构 CHK/AST 归属。
 - 有效 PASSED 正式 RUN 的每个 `assertion_refs` 都必须在其 `artifact_refs` 指向的 ART 中出现一条 AST 级 `assertion_results`，包含非空 `expected`、`observed`、`status: PASSED` 和 `evidence_locator`；仅在 RUN 中声明 `assertion_refs` 不构成证据覆盖。

@@ -40,6 +40,9 @@ CHANGE_SURFACE_FIELDS = (
     "production_files", "test_files", "scripts", "new_interfaces", "changed_interfaces",
     "database_changes", "configuration_changes", "dependency_changes", "external_contract_changes",
 )
+RUN_EXECUTION_TYPES = {"unit", "api", "ui", "e2e", "app_start", "cleanup"}
+RUN_PURPOSES = {"feature_verification", "regression", "test_data_management"}
+RUN_SCOPES = {"focused", "module", "impacted", "full"}
 
 
 class EventError(Exception):
@@ -524,8 +527,12 @@ def validate(event: dict[str, Any]) -> dict[str, Any]:
         covered_run_assertions: set[str] = set()
         run_statuses: list[str] = []
         for index, run in enumerate(acceptance["runs"]):
+            require(isinstance(run, dict), f"acceptance.runs[{index}] 必须是对象")
+            ensure_keys(run, {"id", "execution_type", "purpose", "scope", "check_refs", "assertion_refs", "status"}, f"acceptance.runs[{index}]")
             require(isinstance(run.get("id"), str) and re.fullmatch(r"RUN-[A-Za-z0-9_-]+", run["id"]), f"acceptance.runs[{index}].id 非法")
-            nonempty(run.get("phase"), f"acceptance.runs[{index}].phase")
+            require(run.get("execution_type") in RUN_EXECUTION_TYPES, f"acceptance.runs[{index}].execution_type 非法")
+            require(run.get("purpose") in RUN_PURPOSES, f"acceptance.runs[{index}].purpose 非法")
+            require(run.get("scope") in RUN_SCOPES, f"acceptance.runs[{index}].scope 非法")
             require(run.get("status") in {"PASSED", "FAILED", "BLOCKED"}, f"acceptance.runs[{index}].status 非法")
             for key, allowed, pattern in (("check_refs", scoped_checks, CHK_ID_RE), ("assertion_refs", scoped_assertions, AST_ID_RE)):
                 refs = run.get(key)
@@ -947,7 +954,7 @@ def render_acceptance(event: dict[str, Any]) -> str:
         for item in acceptance["assertion_results"]
     ) or "| - | - | - | - | - | - |"
     runs = "\n".join(
-        f"- `{run['id']}`：{run['phase']}：{run['status']}（CHK：{', '.join(run.get('check_refs', [])) or '无'}；AST：{', '.join(run.get('assertion_refs', [])) or '无'}）"
+        f"- `{run['id']}`：执行类型 `{run['execution_type']}`；测试目的 `{run['purpose']}`；覆盖范围 `{run['scope']}`；结果 `{run['status']}`（CHK：{', '.join(run.get('check_refs', [])) or '无'}；AST：{', '.join(run.get('assertion_refs', [])) or '无'}）"
         for run in acceptance["runs"]
     ) or "- 无"
     artifacts = "\n".join(

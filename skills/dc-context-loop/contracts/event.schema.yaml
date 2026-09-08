@@ -348,10 +348,15 @@ $defs:
         items:
           type: object
           additionalProperties: false
-          required: [id, phase, check_refs, assertion_refs, status]
+          required: [id, execution_type, purpose, scope, check_refs, assertion_refs, status]
+          not:
+            anyOf:
+              - {required: [phase]}
           properties:
             id: {type: string, pattern: '^RUN-[A-Za-z0-9_-]+$'}
-            phase: {type: string, minLength: 1}
+            execution_type: {enum: [unit, api, ui, e2e, app_start, cleanup]}
+            purpose: {enum: [feature_verification, regression, test_data_management]}
+            scope: {enum: [focused, module, impacted, full]}
             check_refs: {type: array, items: {type: string, pattern: '^CHK-[A-Za-z0-9_-]+$'}}
             assertion_refs: {type: array, items: {type: string, pattern: '^AST-[A-Za-z0-9_-]+$'}}
             status: {enum: [PASSED, FAILED, BLOCKED]}

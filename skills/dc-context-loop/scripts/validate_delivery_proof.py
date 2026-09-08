@@ -27,14 +27,9 @@ from req_model import (
     scoped_document_digest,
 )
 
-RUN_PHASES = {
-    "unit_verification",
-    "app_start",
-    "api_verification",
-    "ui_verification",
-    "regression",
-    "cleanup",
-}
+RUN_EXECUTION_TYPES = {"unit", "api", "ui", "e2e", "app_start", "cleanup"}
+RUN_PURPOSES = {"feature_verification", "regression", "test_data_management"}
+RUN_SCOPES = {"focused", "module", "impacted", "full"}
 VERIFICATION_TYPES = {"unit", "api", "ui", "e2e"}
 ARTIFACT_TYPES = {"command_output", "api_exchange", "state_observation", "screenshot"}
 GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
@@ -852,7 +847,10 @@ def validate_evidence(project: Project, requirement_id: str, document: dict[str,
         v.require("code_revision" not in item, path, f"{item.get('id')} 禁止逐 RUN code_revision")
         v.require("git_commit" not in item, path, f"{item.get('id')} 禁止逐 RUN git_commit")
         v.require("expected_failure_observed" not in item, path, f"{item.get('id')} 禁止记录 TDD RED；RED/GREEN 不属于正式 RUN")
-        v.require(item.get("phase") in RUN_PHASES, path, f"{item.get('id')}.phase 非法: {item.get('phase')}")
+        v.require("phase" not in item, path, f"{item.get('id')} 不再支持 phase")
+        v.require(item.get("execution_type") in RUN_EXECUTION_TYPES, path, f"{item.get('id')}.execution_type 非法: {item.get('execution_type')}")
+        v.require(item.get("purpose") in RUN_PURPOSES, path, f"{item.get('id')}.purpose 非法: {item.get('purpose')}")
+        v.require(item.get("scope") in RUN_SCOPES, path, f"{item.get('id')}.scope 非法: {item.get('scope')}")
         result = item.get("result")
         v.require(result in {"PASSED", "FAILED", "BLOCKED"}, path, f"{item.get('id')}.result 非法: {result}")
         for key in ("command", "environment", "started_at"):

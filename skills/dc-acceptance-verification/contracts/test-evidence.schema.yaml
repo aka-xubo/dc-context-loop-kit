@@ -23,7 +23,7 @@ properties:
         type: array
         items:
           type: object
-          required: [phase, check_refs, assertion_refs, supporting_run_refs, artifact_refs]
+          required: [execution_type, purpose, scope, check_refs, assertion_refs, supporting_run_refs, artifact_refs]
           additionalProperties: true
           oneOf:
             - properties:
@@ -38,9 +38,14 @@ properties:
               - {required: [code_revision]}
               - {required: [git_commit]}
               - {required: [expected_failure_observed]}
+              - {required: [phase]}
           properties:
-            phase:
-              enum: [unit_verification, app_start, api_verification, ui_verification, regression, cleanup]
+            execution_type:
+              enum: [unit, api, ui, e2e, app_start, cleanup]
+            purpose:
+              enum: [feature_verification, regression, test_data_management]
+            scope:
+              enum: [focused, module, impacted, full]
             check_refs:
               type: array
               items: {type: string, pattern: '^CHK-[A-Za-z0-9_-]+$'}

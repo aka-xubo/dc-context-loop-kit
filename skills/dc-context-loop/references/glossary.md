@@ -13,7 +13,7 @@ REQ（唯一顶层业务实体）
 
 REQ、SCN、CHK 都保存当前完整定义。每个 SCN 的 `business_result` 定义一个必须成立且可独立裁决的业务结果；`given / when / then` 说明该结果在什么条件、动作下如何被观察。每条 Then 使用场景内稳定 ID，AST 通过 `outcome_refs` 显式映射这些结果。历史由 Issue 评论时间线提供，文件只承载当前内容。
 
-正式 RUN 通过 `check_refs` 指明验证目标 CHK，通过 `assertion_refs` 指明本次实际尝试验证的 AST，并通过 `artifact_refs` 关联可读取证据。`check_refs` 与 `assertion_refs` 同时为空的 RUN 是 REQ 级辅助执行，不属于任何 CHK；正式 RUN 可通过 `supporting_run_refs` 引用它。有效 PASSED 正式 RUN 只覆盖它明确引用的 AST；CHK 的全部 AST 都被覆盖后，CHK 才算通过。
+正式 RUN 通过 `execution_type`、`purpose`、`scope` 分别表达执行入口、测试目的和覆盖范围，通过 `check_refs` 指明验证目标 CHK，通过 `assertion_refs` 指明本次实际尝试验证的 AST，并通过 `artifact_refs` 关联可读取证据。`check_refs` 与 `assertion_refs` 同时为空的 RUN 是 REQ 级辅助执行，不属于任何 CHK；正式 RUN 可通过 `supporting_run_refs` 引用它。有效 PASSED 正式 RUN 只覆盖它明确引用的 AST；CHK 的全部 AST 都被覆盖后，CHK 才算通过。
 
 ART 不只是文件链接。ART 类型固定为 `command_output`、`api_exchange`、`state_observation` 和 `screenshot`；分别证明命令结果、接口交互、系统状态和视觉事实。一个 ART 只有一种类型，一条 RUN 可以关联多个 ART。用于验收覆盖的 ART 必须为每个相关 AST 保存 `assertion_results`，记录 `expected`、`observed`、`status` 和可定位的 `evidence_locator`。视觉类 CHK 可以在 `evidence_requirements.required_artifact_types` 中要求 `screenshot`；截图是视觉事实的补充证据，不替代接口、系统状态或命令输出证据。
 
