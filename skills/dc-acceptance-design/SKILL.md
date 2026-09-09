@@ -11,7 +11,7 @@ description: 为一个已确认 REQ 设计包含验收场景、验证责任和�
 CONFIRMED REQ → 完整 SPEC（场景 + 矩阵）DRAFT → 一次人工确认 → 完整 SPEC CONFIRMED
 ```
 
-开始前复用 `dc-context-loop` 在进入 SPEC 设计前完成的独立完整 intake，并完整读取 workflow contract、glossary、两个 Schema 和对应模板；本技能不得自行调用 `dc-issue-intake`。
+开始前复用 `dc-context-loop` 提供的当前有效 Issue context；只有在上下文缺失、冲突、关键引用无法确认或用户明确要求刷新时，才由总协调器先完成完整 intake。随后完整读取 workflow contract、glossary、两个 Schema 和对应模板；本技能不得自行调用 `dc-issue-intake`。
 
 ## 场景阶段
 

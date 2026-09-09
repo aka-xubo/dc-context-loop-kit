@@ -22,7 +22,7 @@ description: 根据已确认的 REQ、验收场景和 CHK/AST 矩阵，复用 dc
 
 ## 制定计划前：上下文盘点
 
-进入本技能后不调用 `dc-issue-intake`。由 `dc-context-loop` 在进入 IMPLEMENTATION 前按读取门禁完成必要的完整 intake，并将基于完整历史形成的当前 Issue context 放入当前 Agent 会话；本技能直接复用该上下文。若当前会话没有有效上下文、历史存在冲突或关键字段缺失，应返回 `dc-context-loop` 补做 intake 或澄清，不得自行读取或基于猜测继续实现。
+进入本技能后不调用 `dc-issue-intake`。由 `dc-context-loop` 提供当前有效 Issue context；在上下文缺失、历史存在冲突、关键字段或引用无法确认、或用户明确说明 Issue 已变化时，由总协调器先补做完整 intake。本技能直接复用该上下文，不因进入 IMPLEMENTATION 动作本身重新读取，也不得自行调用 `dc-issue-intake` 或基于猜测继续实现。
 
 先完整阅读并在 `实现计划.md` 的 `context_review` 中记录依据：
 

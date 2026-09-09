@@ -70,7 +70,7 @@
     {
       "id": 12,
       "prompt": "上一轮已经读取过 Issue 并发布了 REQ；这一轮用户说继续生成 SPEC。",
-      "expected_output": "本轮开始重新调用 dc-issue-intake 完整读取 Issue 和附件，不使用上一轮 Issue context 或评论缓存替代；确认线上 REQ 后，本轮至多调用 SPEC 节点技能。",
+      "expected_output": "若当前会话保留可定位且无冲突的已确认 REQ 和有效 Issue context，则直接复用并调用 SPEC 节点技能，不因进入 SPEC 本身重新 intake；只有上下文缺失、冲突、关键引用无法确认、用户说明 Issue 已变化或要求刷新时才完整读取。",
       "files": []
     },
     {
@@ -82,7 +82,7 @@
     {
       "id": 14,
       "prompt": "本轮 SPEC 事件发布接口返回 2xx，且当前上下文已经足够进入实现。",
-      "expected_output": "报告 SPEC 发布成功并结束本轮；不在同一轮调用实现技能。下一轮必须重新完整读取 Issue，确认 SPEC 在线存在后再判断是否进入 IMPLEMENTATION；本轮输出只报告事实和下一轮入口。",
+      "expected_output": "报告 SPEC 发布成功并结束本轮，不在同一轮调用实现技能。下一轮进入 IMPLEMENTATION 时先判断当前上下文是否仍有效；有效且无变化信号则复用当前 REQ/SPEC 和 Issue context，缺失、冲突、关键引用无法确认或用户显式变化/刷新时才完整 intake。",
       "files": []
     }
   ]
