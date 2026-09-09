@@ -103,4 +103,12 @@ SPEC 草案交付门禁：草案必须包含完整 SCN、CHK、AST、引用关�
 
 ## 输出
 
-每次写入需求、场景或矩阵后，立即执行项目级校验并重生成本地 Markdown 需求清单；随后用 `render_delivery_review.py --check` 确认需求清单与真值一致。同步失败时不得进入下一门禁。报告目标 REQ、当前场景/矩阵状态、SCN 与 CHK 覆盖、验证环境模式、未决问题和下一人工门禁。
+每次写入需求、场景或矩阵后，立即对当前 REQ 执行完整交付链校验并刷新本地 Markdown 需求清单；随后用 `render_delivery_review.py --check` 确认需求清单与真值一致。当前 REQ 校验或清单同步失败时不得进入下一门禁。命令示例：
+
+```bash
+python3 <kit-dir>/dc-context-loop/scripts/validate_delivery_proof.py docs/交付证明/<REQ-ID>
+python3 <kit-dir>/dc-context-loop/scripts/render_delivery_review.py docs/交付证明
+python3 <kit-dir>/dc-context-loop/scripts/render_delivery_review.py --check docs/交付证明
+```
+
+`validate_delivery_proof.py docs/交付证明` 是独立的全项目健康检查；其历史 REQ 错误不得阻塞无关 REQ 的当前 SPEC 门禁。报告目标 REQ、当前场景/矩阵状态、SCN 与 CHK 覆盖、验证环境模式、未决问题和下一人工门禁。

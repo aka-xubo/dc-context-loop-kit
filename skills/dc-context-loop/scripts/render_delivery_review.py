@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from validate_delivery_proof import Project, as_dict, load_project
+from req_model import ISSUE_NO_RE, REQ_RE, ModelError, discover_current_requirement_documents, extract_document
 
 
 DEFAULT_ROOT = Path("docs/交付证明")
@@ -20,25 +20,39 @@ class ReviewError(ValueError):
     pass
 
 
-def delivery_stage(project: Project, requirement_id: str) -> str:
-    requirement = as_dict(project.requirements[requirement_id].get("requirement"))
+def as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _optional_document(path: Path, expected_type: str) -> dict[str, Any] | None:
+    """Read stage metadata without applying project-wide delivery-proof validation."""
+    if not path.exists():
+        return None
+    try:
+        return extract_document(path, expected_type)
+    except (ModelError, OSError, UnicodeError):
+        return None
+
+
+def delivery_stage(root: Path, requirement_id: str, requirement: dict[str, Any]) -> str:
     if requirement.get("status") == "DRAFT":
         return "需求待确认"
-    scenario_doc = project.scenarios.get(requirement_id)
+    req_root = root / requirement_id
+    scenario_doc = _optional_document(req_root / "验收场景.md", "acceptance_scenarios")
     if scenario_doc is None:
         return "场景未开始"
     if as_dict(scenario_doc.get("acceptance_scenarios")).get("status") == "DRAFT":
         return "场景待确认"
-    matrix_doc = project.matrices.get(requirement_id)
+    matrix_doc = _optional_document(req_root / "验收矩阵.md", "acceptance_matrix")
     if matrix_doc is None:
         return "矩阵未开始"
     if as_dict(matrix_doc.get("acceptance_matrix")).get("status") == "DRAFT":
         return "矩阵待确认"
-    report = project.reports.get(requirement_id)
+    report = _optional_document(req_root / "验收报告.md", "acceptance_report")
     if report is not None:
         status = as_dict(report.get("acceptance_report")).get("status")
         return "已验收" if status == "SATISFIED" else "未通过验收"
-    plan = project.plans.get(requirement_id)
+    plan = _optional_document(req_root / "实现计划.md", "implementation_plan")
     if plan is None:
         return "开发未开始"
     plan_status = as_dict(plan.get("implementation_plan")).get("status")
@@ -49,21 +63,44 @@ def delivery_stage(project: Project, requirement_id: str) -> str:
     }.get(str(plan_status), str(plan_status))
 
 
-def current_rows(project: Project) -> list[dict[str, Any]]:
+def load_catalog(root: Path) -> tuple[Path, dict[str, dict[str, Any]]]:
+    requirements: dict[str, dict[str, Any]] = {}
+    discovered = discover_current_requirement_documents(root)
+    if not discovered:
+        raise ReviewError(f"{root}: 未发现 REQ-*/需求.md")
+    for requirement_id, path in discovered.items():
+        try:
+            document = extract_document(path, "requirement")
+        except (ModelError, OSError, UnicodeError) as error:
+            raise ReviewError(str(error)) from error
+        requirement = as_dict(document.get("requirement"))
+        if requirement.get("id") != requirement_id or REQ_RE.fullmatch(str(requirement.get("id", ""))) is None:
+            raise ReviewError(f"{path}: requirement.id 与 REQ 目录不一致或格式非法")
+        if not isinstance(requirement.get("issue_no"), str) or ISSUE_NO_RE.fullmatch(requirement["issue_no"]) is None:
+            raise ReviewError(f"{path}: requirement.issue_no 缺失或格式非法")
+        if requirement.get("status") not in {"DRAFT", "CONFIRMED", "SATISFIED"}:
+            raise ReviewError(f"{path}: requirement.status 非法")
+        if not isinstance(requirement.get("title"), str) or not requirement["title"].strip():
+            raise ReviewError(f"{path}: requirement.title 不能为空")
+        requirements[requirement_id] = requirement
+    return root, requirements
+
+
+def current_rows(root: Path, requirements: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     rows = []
-    for requirement_id in sorted(project.requirements):
-        requirement = as_dict(project.requirements[requirement_id].get("requirement"))
+    for requirement_id in sorted(requirements):
+        requirement = requirements[requirement_id]
         rows.append(
             {
                 "id": requirement_id,
                 "requirement": requirement,
-                "stage": delivery_stage(project, requirement_id),
+                "stage": delivery_stage(root, requirement_id, requirement),
             }
         )
     return rows
 
 
-def render_catalog_markdown(project: Project) -> str:
+def render_catalog_markdown(root: Path, requirements: dict[str, dict[str, Any]]) -> str:
     lines = [
         "# 需求清单",
         "",
@@ -72,7 +109,7 @@ def render_catalog_markdown(project: Project) -> str:
         "| REQ | Issue No | 需求状态 | 交付阶段 | 标题 |",
         "|---|---|---|---|---|",
     ]
-    for row in current_rows(project):
+    for row in current_rows(root, requirements):
         requirement = row["requirement"]
         lines.append(
             f"| [{row['id']}](./{row['id']}/需求.md) | {requirement.get('issue_no')} | "
@@ -83,10 +120,8 @@ def render_catalog_markdown(project: Project) -> str:
 
 
 def expected_outputs(root: Path) -> dict[Path, str]:
-    project = load_project(root.resolve())
-    if project.validation.errors:
-        raise ReviewError("；".join(project.validation.errors))
-    return {root / "需求清单.md": render_catalog_markdown(project)}
+    root, requirements = load_catalog(root.resolve())
+    return {root / "需求清单.md": render_catalog_markdown(root, requirements)}
 
 
 def atomic_write(path: Path, content: str) -> None:

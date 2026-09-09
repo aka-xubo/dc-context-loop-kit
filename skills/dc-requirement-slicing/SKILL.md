@@ -40,3 +40,5 @@ dependencies:
 ## 草案与发布
 
 需求草案使用统一 REQ 模型，至少包含 `issue_no`、`title`、`statement`、`business_outcomes`、`scope`、`constraints`、`dependencies`、`open_questions` 和 `release_notes`。负责人确认后，REQ 事件必须复用相同业务字段，事件 `reason` 必须等于草案 `release_notes`；调用 `prepare_event.py` 时通过 `--requirement-file` 执行逐字段漂移校验。草案状态、确认信息以及事件 ID、时间、作者、附件地址等技术元数据不参与比较。
+
+需要从结构化 REQ 事件生成独立审阅文件时，使用 `dc-context-loop/scripts/render_req_draft.py --event-file <REQ 事件 YAML> --output-file <需求草案.md>`。脚本只接受已通过事件校验的统一 REQ 结构，以同一份数据生成完整人类章节和固定 Delivery Proof YAML 机器块；输出为 UTF-8 无 BOM 纯 Markdown。

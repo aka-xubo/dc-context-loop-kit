@@ -251,6 +251,7 @@ REQ 始终发布当时的完整内容。SPEC 首次建立或需要重建基线�
 需要运行工具时：
 
 - `dc-context-loop/scripts/prepare_event.py`：校验并生成结构化事件评论和附件。
+- `dc-context-loop/scripts/render_req_draft.py`：从统一 REQ 事件生成独立、人类可读的 Markdown 需求草案。
 - `dc-context-loop/scripts/review_implementation.py`：执行实现覆盖预检和 READY 前程序化复核。
 - `dc-context-loop/scripts/validate_delivery_proof.py`：校验本地交付证明。
 - `dc-context-loop/scripts/render_delivery_review.py`：渲染或检查交付证明视图。

@@ -308,10 +308,15 @@ def load(path: Path, expected_type: str, validation: Validation) -> dict[str, An
         return None
 
 
-def load_project(root: Path) -> Project:
+def load_project(root: Path, requirement_ids: set[str] | None = None) -> Project:
     validation = Validation()
     project = Project(root=root, validation=validation)
     discovered = discover_current_requirement_documents(root)
+    if requirement_ids is not None:
+        unknown = requirement_ids - set(discovered)
+        for requirement_id in sorted(unknown):
+            validation.errors.append(f"{root}: 未发现目标 REQ: {requirement_id}")
+        discovered = {key: value for key, value in discovered.items() if key in requirement_ids}
     validation.require(bool(discovered), root, "未发现 REQ-*/需求.md")
     for requirement_id, requirement_path in discovered.items():
         document = load(requirement_path, "requirement", validation)
@@ -1305,27 +1310,35 @@ def application_ready(project: Project, requirement_id: str, validation: Validat
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("targets", nargs="+", type=Path, help="docs/交付证明、REQ 目录或派生需求清单")
+    parser.add_argument(
+        "targets",
+        nargs="+",
+        type=Path,
+        help="交付证明根目录（全项目健康检查）、单个 REQ 目录（当前交付链校验）或派生需求清单",
+    )
     parser.add_argument("--gate", choices=["application-ready"], help="额外执行阶段门禁")
     args = parser.parse_args()
-    roots: dict[Path, set[str]] = {}
+    roots: dict[Path, set[str] | None] = {}
     for target in args.targets:
         root, requirement_id = resolve_root(target)
-        roots.setdefault(root, set())
-        if requirement_id:
+        if root not in roots:
+            roots[root] = set() if requirement_id else None
+        elif roots[root] is not None and requirement_id is None:
+            roots[root] = None
+        if requirement_id and roots[root] is not None:
             roots[root].add(requirement_id)
     all_errors: list[str] = []
     all_warnings: list[str] = []
     total_requirements = 0
     total_runs = 0
     for root, selected in roots.items():
-        project = load_project(root)
+        project = load_project(root, selected)
         total_requirements += len(project.requirements)
         total_runs += sum(len(as_list(as_dict(doc.get("test_evidence")).get("runs"))) for doc in project.evidence.values())
         if args.gate:
             if not selected:
                 project.validation.errors.append(f"{root}: --gate application-ready 必须指定一个 REQ 目录")
-            for requirement_id in selected:
+            for requirement_id in selected or set():
                 application_ready(project, requirement_id, project.validation)
         all_errors.extend(project.validation.errors)
         all_warnings.extend(project.validation.warnings)

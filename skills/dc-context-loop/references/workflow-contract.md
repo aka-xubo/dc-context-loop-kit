@@ -84,3 +84,15 @@ scenario_results:
 python3 <kit-dir>/dc-context-loop/scripts/render_delivery_review.py docs/交付证明
 python3 <kit-dir>/dc-context-loop/scripts/render_delivery_review.py --check docs/交付证明
 ```
+
+当前 REQ 的场景、矩阵、实现和验收门禁使用单 REQ 完整交付链校验，不加载其他 REQ：
+
+```bash
+python3 <kit-dir>/dc-context-loop/scripts/validate_delivery_proof.py docs/交付证明/<REQ-ID>
+```
+
+全项目深度校验是独立健康检查；它会加载所有 REQ 的需求、场景、矩阵、实现计划、测试证据、验收报告和依赖关系，但其历史错误不阻塞无关 REQ 的当前门禁：
+
+```bash
+python3 <kit-dir>/dc-context-loop/scripts/validate_delivery_proof.py docs/交付证明
+```

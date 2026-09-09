@@ -15,6 +15,8 @@ from typing import Any
 
 import yaml
 
+from req_model import requirement_digest
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROOF_SCRIPT_DIR = SCRIPT_DIR
 KIT_ROOT = SCRIPT_DIR.parent.parent
@@ -818,6 +820,111 @@ class ContextLoopTest(unittest.TestCase):
             files = sorted(path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file())
             self.assertEqual(files, ["REQ-001/需求.md", "需求清单.md"])
 
+    def test_catalog_and_targeted_validation_ignore_invalid_historical_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "交付证明"
+            current_requirement = requirement_document(requirement_id="REQ-001")
+            current_requirement["requirement"]["status"] = "CONFIRMED"
+            current_requirement["requirement"]["confirmation"] = {
+                "confirmed_by": "tester",
+                "confirmed_at": "2026-09-08T10:00:00+08:00",
+                "content_digest": requirement_digest(current_requirement["requirement"]),
+            }
+            current_scenarios = {
+                "document_type": "acceptance_scenarios",
+                "requirement_ref": {"requirement_id": "REQ-001"},
+                "acceptance_scenarios": {
+                    "status": "CONFIRMED",
+                    "scenarios": [{
+                        "id": "SCN-001",
+                        "title": "当前规格",
+                        "business_result": "当前需求可以独立完成规格门禁",
+                        "given": ["当前 REQ 已确认"],
+                        "when": "执行当前 REQ 完整校验",
+                        "then": [{"id": "THEN-001", "statement": "当前规格通过校验"}],
+                        "delivery_surfaces": ["skill"],
+                    }],
+                    "open_questions": [],
+                    "confirmation": None,
+                },
+            }
+            current_matrix = {
+                "document_type": "acceptance_matrix",
+                "requirement_ref": {"requirement_id": "REQ-001"},
+                "acceptance_scenarios_ref": {"requirement_id": "REQ-001"},
+                "acceptance_matrix": {
+                    "status": "CONFIRMED",
+                    "checks": [{
+                        "id": "CHK-001",
+                        "scenario_ids": ["SCN-001"],
+                        "dependency_ids": [],
+                        "verification_type": "unit",
+                        "responsibility": "验证当前规格可独立通过门禁",
+                        "assertions": [{
+                            "id": "AST-001",
+                            "description": "当前规格通过完整交付链校验",
+                            "outcome_refs": ["SCN-001.THEN-001"],
+                            "assertion_type": "semantic",
+                        }],
+                        "required": True,
+                        "blocking": True,
+                        "external_verification": None,
+                    }],
+                    "confirmation": None,
+                },
+            }
+            write_requirement(root / "REQ-001" / "需求.md", current_requirement)
+            write_requirement(root / "REQ-001" / "验收场景.md", current_scenarios)
+            write_requirement(root / "REQ-001" / "验收矩阵.md", current_matrix)
+            write_requirement(root / "REQ-OLD" / "需求.md", requirement_document(requirement_id="REQ-OLD"))
+            historical_evidence = {
+                "document_type": "test_evidence",
+                "requirement_ref": {"requirement_id": "REQ-OLD"},
+                "test_evidence": {
+                    "git_commit": None,
+                    "definition_digests": {},
+                    "runs": [{"id": "RUN-OLD", "phase": "api_verification"}],
+                    "artifacts": [],
+                },
+            }
+            write_requirement(root / "REQ-OLD" / "测试证据.md", historical_evidence)
+
+            render = subprocess.run(
+                [sys.executable, str(PROOF_SCRIPT_DIR / "render_delivery_review.py"), str(root)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(render.returncode, 0, render.stderr)
+            catalog = (root / "需求清单.md").read_text(encoding="utf-8")
+            self.assertIn("REQ-001", catalog)
+            self.assertIn("开发未开始", catalog)
+
+            targeted = subprocess.run(
+                [sys.executable, str(PROOF_SCRIPT_DIR / "validate_delivery_proof.py"), str(root / "REQ-001")],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(targeted.returncode, 0, targeted.stderr)
+
+            health = subprocess.run(
+                [sys.executable, str(PROOF_SCRIPT_DIR / "validate_delivery_proof.py"), str(root)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertNotEqual(health.returncode, 0)
+            self.assertIn("phase", health.stderr)
+
+            invalid_gate = subprocess.run(
+                [
+                    sys.executable,
+                    str(PROOF_SCRIPT_DIR / "validate_delivery_proof.py"),
+                    "--gate",
+                    "application-ready",
+                    str(root),
+                ],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(invalid_gate.returncode, 1)
+            self.assertIn("必须指定一个 REQ 目录", invalid_gate.stderr)
+            self.assertNotIn("Traceback", invalid_gate.stderr)
+
     def test_requirement_validation_rejects_missing_or_invalid_issue_no(self) -> None:
         for issue_no in (None, "htw-1", ["HTW-1", "HTW-2"]):
             with self.subTest(issue_no=issue_no), tempfile.TemporaryDirectory() as temporary:
@@ -1253,6 +1360,52 @@ class ContextLoopTest(unittest.TestCase):
             self.assertIn("SCN-002.THEN-002` · 明确验收授权：系统进入验收流程", content)
             self.assertNotIn("SCN-001", content)
             self.assertNotIn("| SCN | 标题 | 业务结果 | Given | When | Then | 交付面 |", content)
+
+    def test_req_draft_renderer_generates_human_readable_markdown_and_machine_block(self) -> None:
+        document = canonical_requirement_event("EVT-REQ-DRAFT-RENDER")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            event_file = root / "event.yaml"
+            output_file = root / "需求草案.md"
+            event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_DIR / "render_req_draft.py"), "--event-file", str(event_file), "--output-file", str(output_file)],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            raw = output_file.read_bytes()
+            self.assertFalse(raw.startswith(b"\xef\xbb\xbf"))
+            content = raw.decode("utf-8")
+            for heading in ("## 需求目标", "## 需求陈述", "## Issue No", "## 业务结果", "## 范围", "## 约束", "## 依赖", "## 未决事项", "## 发布说明"):
+                self.assertIn(heading, content)
+            self.assertNotRegex(content, r"<\s*/?\s*[A-Za-z][^>]*>")
+            machine = yaml.safe_load(content.split("```yaml", 1)[1].split("```", 1)[0])
+            self.assertEqual(machine["document_type"], "requirement")
+            self.assertEqual(machine["requirement"]["status"], "DRAFT")
+            event_req = document["event"]["requirement"]
+            for field in ("id", "issue_no", "title", "statement", "business_outcomes", "scope", "constraints", "dependencies", "open_questions"):
+                self.assertEqual(machine["requirement"][field], event_req[field])
+            self.assertEqual(machine["requirement"]["release_notes"], document["event"]["reason"])
+
+    def test_req_draft_renderer_rejects_non_req_and_invalid_events(self) -> None:
+        cases = []
+        non_req = specification_event("EVT-NON-REQ-DRAFT")
+        cases.append(non_req)
+        invalid = canonical_requirement_event("EVT-INVALID-REQ-DRAFT")
+        del invalid["event"]["requirement"]["issue_no"]
+        cases.append(invalid)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for index, document in enumerate(cases):
+                event_file = root / f"event-{index}.yaml"
+                output_file = root / f"draft-{index}.md"
+                event_file.write_text(yaml.safe_dump(document, allow_unicode=True, sort_keys=False), encoding="utf-8")
+                result = subprocess.run(
+                    [sys.executable, str(SCRIPT_DIR / "render_req_draft.py"), "--event-file", str(event_file), "--output-file", str(output_file)],
+                    check=False, capture_output=True, text=True,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(output_file.exists())
 
     def test_spec_requires_spec_subject_id(self) -> None:
         document = specification_event("EVT-SPEC-MISSING-ID")
