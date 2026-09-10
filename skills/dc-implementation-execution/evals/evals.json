@@ -62,6 +62,32 @@
         "保持 dc-implementation-execution 或开发实现阶段",
         "要求通过 --gate application-ready 后才能进入 dc-acceptance-verification"
       ]
+    },
+    {
+      "id": 5,
+      "prompt": "REQ-001 原来按 SPEC-001 实现到一半，现在 SPEC-002 已确认并成为当前定义。不受影响的代码可以复用，请继续实现。",
+      "expected_output": "把当前实现计划绑定到 SPEC-002 并恢复为 PLANNED，重新规划受影响切片、清空旧完成复核，再依据当前矩阵重新执行全部必需 AST 覆盖预检。",
+      "files": [],
+      "expectations": [
+        "实现计划明确记录 spec_ref: SPEC-002",
+        "不删除历史 SPEC，也不要求重做所有不受影响的代码",
+        "把旧预检、程序复核、语义复核和 reviewed assertions 重置为待执行状态",
+        "按当前矩阵重新检查全部必需 AST 覆盖",
+        "不因进入 IMPLEMENTATION 节点本身重新读取 Issue"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "请把当前实现计划给负责人看。负责人不想直接阅读 YAML，也不想按 AST 编号跨文件查找含义。",
+      "expected_output": "从同一实现计划机器块和当前验收矩阵生成结论先行的 Markdown 视图，并执行一致性检查；不手工维护第二份计划数据。",
+      "files": [],
+      "expectations": [
+        "首屏展示状态、REQ、SPEC、目标、阻塞和完成复核",
+        "按执行顺序展示切片",
+        "为行为切片展开 AST 的自然语言、生产引用、测试引用和状态",
+        "视图由机器计划和当前矩阵确定性派生",
+        "计划或矩阵变化导致一致性检查失败"
+      ]
     }
   ]
 }

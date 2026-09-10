@@ -356,6 +356,8 @@ def implementation_plan_document() -> dict:
     return {
         "document_type": "implementation_plan",
         "implementation_plan": {
+            "requirement_ref": {"requirement_id": "REQ-001"},
+            "spec_ref": "SPEC-001",
             "status": "READY",
             "slices": [{
                 "id": "SLICE-001",
@@ -377,6 +379,78 @@ def implementation_plan_document() -> dict:
             },
         },
     }
+
+
+def planned_implementation_plan_document() -> dict:
+    document = implementation_plan_document()
+    plan = document["implementation_plan"]
+    plan.update({
+        "status": "PLANNED",
+        "context_review": {
+            "status": "COMPLETED",
+            "requirement_refs": ["需求.md"],
+            "scenario_refs": ["验收场景.md"],
+            "matrix_refs": ["验收矩阵.md"],
+            "project_refs": ["AGENTS.md", "README.md"],
+            "code_structure_refs": ["skills/dc-context-loop/scripts/"],
+            "findings": [{"area": "计划视图", "observation": "当前计划只有机器 YAML", "impact": "生成可读 Markdown"}],
+            "assumptions": [],
+            "open_questions": [],
+            "decisions": [{
+                "id": "DEC-001",
+                "topic": "视图来源",
+                "decision": "由计划和矩阵确定性生成",
+                "source": "当前 SPEC",
+                "affected_slice_refs": ["SLICE-001"],
+            }],
+        },
+        "human_gate": {"required": False, "status": "NOT_REQUIRED", "risk_categories": []},
+        "test_strategy": {"default": "tdd", "exemptions": []},
+        "completion_review": {
+            "status": "PENDING",
+            "performed_after_self_test": False,
+            "preflight": {"status": "PENDING", "report": None},
+            "program": {"status": "PENDING", "command": None, "report": None, "findings": []},
+            "semantic": {"status": "PENDING", "reviewed_assertions": [], "findings": []},
+        },
+        "blockers": [],
+        "delivery_surfaces": [{"id": "implementation-plan", "status": "PLANNED"}],
+        "readiness": {
+            "configuration": {"status": "NOT_REQUIRED", "required_refs": [], "validation_refs": []},
+            "persistence": {"status": "NOT_REQUIRED", "required_refs": [], "validation_refs": []},
+            "application_start": {"status": "NOT_REQUIRED", "command": None, "readiness_probe": None},
+            "external_journeys": [],
+        },
+    })
+    plan["slices"][0].update({"check_refs": ["CHK-001"], "depends_on": [], "status": "PLANNED"})
+    return document
+
+
+def write_acceptance_matrix(path: Path) -> None:
+    path.write_text("""# 验收矩阵
+
+<!-- DELIVERY_PROOF_YAML_START -->
+```yaml
+document_type: acceptance_matrix
+requirement_ref:
+  requirement_id: REQ-001
+acceptance_matrix:
+  status: CONFIRMED
+  checks:
+  - id: CHK-001
+    required: true
+    blocking: true
+    responsibility: 验证登录失败行为
+    assertions:
+    - id: AST-001
+      description: 登录请求被拒绝，并返回可理解的失败原因。
+      outcome_refs: [SCN-001.THEN-001]
+      assertion_type: semantic
+```
+<!-- DELIVERY_PROOF_YAML_END -->
+""", encoding="utf-8")
+
+
 class ContextLoopTest(unittest.TestCase):
     def test_resources_are_internalized_by_unique_owner(self) -> None:
         target_paths = [KIT_ROOT / relative for relative in INTERNALIZED_RESOURCES.values()]
@@ -991,15 +1065,13 @@ class ContextLoopTest(unittest.TestCase):
     def test_preflight_accepts_spec_event_as_matrix_source(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             plan_copy = Path(temporary) / "plan.md"
-            plan_document = implementation_plan_document()
-            plan_document["implementation_plan"]["status"] = "PLANNED"
-            plan_document["implementation_plan"]["slices"][0]["assertion_refs"] = ["AST-002"]
+            plan_document = planned_implementation_plan_document()
             plan_copy.write_text(yaml.safe_dump(plan_document, allow_unicode=True, sort_keys=False), encoding="utf-8")
             matrix_file = Path(temporary) / "spec-event.yaml"
-            matrix_file.write_text(yaml.safe_dump(incremental_specification_event(), allow_unicode=True, sort_keys=False), encoding="utf-8")
+            matrix_file.write_text(yaml.safe_dump(specification_event("EVT-SPEC-PREFLIGHT"), allow_unicode=True, sort_keys=False), encoding="utf-8")
             report = Path(temporary) / "preflight.txt"
             result = subprocess.run(
-                [sys.executable, str(SCRIPT_DIR / "review_implementation.py"), "--phase", "preflight", "--plan-file", str(plan_copy), "--matrix-file", str(matrix_file), "--report-file", str(report)],
+                [sys.executable, str(SCRIPT_DIR / "review_implementation.py"), "--phase", "preflight", "--plan-file", str(plan_copy), "--matrix-file", str(matrix_file), "--spec-file", str(matrix_file), "--report-file", str(report)],
                 check=False, capture_output=True, text=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -1663,15 +1735,84 @@ class ContextLoopTest(unittest.TestCase):
     def test_preflight_checks_current_matrix_coverage(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            plan = implementation_plan_document()
-            plan["implementation_plan"]["status"] = "IN_PROGRESS"
+            plan = planned_implementation_plan_document()
             plan_file = root / "plan.yaml"
             matrix_file = root / "验收矩阵.md"
+            spec_file = root / "SPEC-001.yaml"
             plan_file.write_text(yaml.safe_dump(plan, allow_unicode=True, sort_keys=False), encoding="utf-8")
-            matrix_file.write_text("""```yaml\ndocument_type: acceptance_matrix\nacceptance_matrix:\n  checks:\n  - id: CHK-001\n    required: true\n    blocking: true\n    assertions:\n    - id: AST-001\n```\n""", encoding="utf-8")
-            result = subprocess.run([sys.executable, str(SCRIPT_DIR / "review_implementation.py"), "--phase", "preflight", "--plan-file", str(plan_file), "--matrix-file", str(matrix_file)], check=False, capture_output=True, text=True)
+            write_acceptance_matrix(matrix_file)
+            spec_file.write_text(yaml.safe_dump(specification_event("EVT-SPEC-CURRENT"), allow_unicode=True, sort_keys=False), encoding="utf-8")
+            result = subprocess.run([sys.executable, str(SCRIPT_DIR / "review_implementation.py"), "--phase", "preflight", "--plan-file", str(plan_file), "--matrix-file", str(matrix_file), "--spec-file", str(spec_file)], check=False, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("当前矩阵必需 AST 均有切片覆盖", result.stdout)
+            self.assertIn("实现计划绑定当前 SPEC：SPEC-001", result.stdout)
+
+    def test_preflight_rejects_stale_spec_and_completion_review(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            plan = planned_implementation_plan_document()
+            plan_file = root / "plan.yaml"
+            matrix_file = root / "验收矩阵.md"
+            spec_file = root / "SPEC-002.yaml"
+            write_acceptance_matrix(matrix_file)
+            specification = specification_event("EVT-SPEC-NEW")
+            specification["event"]["subject_id"] = "SPEC-002"
+            spec_file.write_text(yaml.safe_dump(specification, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            plan_file.write_text(yaml.safe_dump(plan, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+            mismatch = subprocess.run([sys.executable, str(SCRIPT_DIR / "review_implementation.py"), "--phase", "preflight", "--plan-file", str(plan_file), "--matrix-file", str(matrix_file), "--spec-file", str(spec_file)], check=False, capture_output=True, text=True)
+            self.assertNotEqual(mismatch.returncode, 0)
+            self.assertIn("spec_ref 与当前 SPEC 不一致", mismatch.stdout + mismatch.stderr)
+
+            plan["implementation_plan"]["spec_ref"] = "SPEC-002"
+            plan["implementation_plan"]["completion_review"] = implementation_plan_document()["implementation_plan"]["completion_review"]
+            plan_file.write_text(yaml.safe_dump(plan, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            stale_review = subprocess.run([sys.executable, str(SCRIPT_DIR / "review_implementation.py"), "--phase", "preflight", "--plan-file", str(plan_file), "--matrix-file", str(matrix_file), "--spec-file", str(spec_file)], check=False, capture_output=True, text=True)
+            self.assertNotEqual(stale_review.returncode, 0)
+            self.assertIn("旧完成复核状态必须重置为 PENDING", stale_review.stdout + stale_review.stderr)
+
+    def test_implementation_plan_renderer_generates_readable_view_and_detects_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source_file = root / "plan.yaml"
+            matrix_file = root / "验收矩阵.md"
+            output_file = root / "实现计划.md"
+            source_file.write_text(yaml.safe_dump(planned_implementation_plan_document(), allow_unicode=True, sort_keys=False), encoding="utf-8")
+            write_acceptance_matrix(matrix_file)
+
+            rendered = subprocess.run([sys.executable, str(SCRIPT_DIR / "render_implementation_plan.py"), "--plan-file", str(source_file), "--matrix-file", str(matrix_file), "--output-file", str(output_file)], check=False, capture_output=True, text=True)
+            self.assertEqual(rendered.returncode, 0, rendered.stderr)
+            raw = output_file.read_bytes()
+            self.assertFalse(raw.startswith(b"\xef\xbb\xbf"))
+            content = raw.decode("utf-8")
+            for heading in ("## 执行摘要", "## 关键发现与决策", "## 实现切片", "## 测试策略", "## 阻塞与就绪"):
+                self.assertIn(heading, content)
+            self.assertIn("REQ-001", content)
+            self.assertIn("SPEC-001", content)
+            self.assertIn("- 就绪：", content)
+            self.assertIn("登录请求被拒绝，并返回可理解的失败原因。", content)
+            self.assertIn("server/auth/login_handler.go", content)
+            self.assertIn("server/auth/login_handler_test.go", content)
+
+            consistent = subprocess.run([sys.executable, str(SCRIPT_DIR / "render_implementation_plan.py"), "--plan-file", str(output_file), "--matrix-file", str(matrix_file), "--check"], check=False, capture_output=True, text=True)
+            self.assertEqual(consistent.returncode, 0, consistent.stderr)
+            matrix_content = matrix_file.read_text(encoding="utf-8")
+            matrix_file.write_text(matrix_content.replace("返回可理解的失败原因", "返回明确的失败原因", 1), encoding="utf-8")
+            matrix_drift = subprocess.run([sys.executable, str(SCRIPT_DIR / "render_implementation_plan.py"), "--plan-file", str(output_file), "--matrix-file", str(matrix_file), "--check"], check=False, capture_output=True, text=True)
+            self.assertNotEqual(matrix_drift.returncode, 0)
+            self.assertIn("不一致", matrix_drift.stderr)
+            matrix_file.write_text(matrix_content, encoding="utf-8")
+            output_file.write_text(content.replace("## 测试策略", "## 已漂移的测试策略", 1), encoding="utf-8")
+            drift = subprocess.run([sys.executable, str(SCRIPT_DIR / "render_implementation_plan.py"), "--plan-file", str(output_file), "--matrix-file", str(matrix_file), "--check"], check=False, capture_output=True, text=True)
+            self.assertNotEqual(drift.returncode, 0)
+            self.assertIn("不一致", drift.stderr)
+
+            invalid_plan = planned_implementation_plan_document()
+            invalid_plan["implementation_plan"]["slices"][0]["assertion_refs"] = ["AST-999"]
+            source_file.write_text(yaml.safe_dump(invalid_plan, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            missing_ast = subprocess.run([sys.executable, str(SCRIPT_DIR / "render_implementation_plan.py"), "--plan-file", str(source_file), "--matrix-file", str(matrix_file), "--output-file", str(output_file)], check=False, capture_output=True, text=True)
+            self.assertNotEqual(missing_ast.returncode, 0)
+            self.assertIn("不存在的 AST: AST-999", missing_ast.stderr)
 
     def test_verify_git_binding_accepts_real_head(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

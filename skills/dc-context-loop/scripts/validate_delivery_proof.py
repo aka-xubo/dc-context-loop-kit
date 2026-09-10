@@ -558,6 +558,7 @@ def validate_plan(project: Project, requirement_id: str, document: dict[str, Any
     _, matrix = validate_current_refs(project, requirement_id, plan, path)
     status = plan.get("status")
     v.require(status in IMPLEMENTATION_PLAN_STATUSES, path, "实现计划状态只允许 PLANNED/IN_PROGRESS/READY")
+    v.require(isinstance(plan.get("spec_ref"), str) and re.fullmatch(r"SPEC-[0-9]{3}", plan["spec_ref"]) is not None, path, "实现计划必须包含三位数字 spec_ref")
 
     context = as_dict(plan.get("context_review"))
     v.require(context.get("status") == "COMPLETED", path, "制定实现计划前必须完成 context_review")

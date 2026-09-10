@@ -9,9 +9,10 @@ properties:
   implementation_plan:
     type: object
     additionalProperties: true
-    required: [requirement_ref, status, context_review, test_strategy, blockers, slices]
+    required: [requirement_ref, spec_ref, status, context_review, test_strategy, blockers, slices]
     properties:
       requirement_ref: {type: object, required: [requirement_id]}
+      spec_ref: {type: string, pattern: '^SPEC-[0-9]{3}$'}
       status: {enum: [PLANNED, IN_PROGRESS, READY]}
       context_review:
         type: object

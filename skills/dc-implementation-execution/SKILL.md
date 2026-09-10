@@ -67,6 +67,7 @@ human_gate:
 实现计划至少包含：
 
 - `requirement_ref`：当前 REQ；
+- `spec_ref`：当前有效且已确认的完整 SPEC 事件 ID；
 - `context_review`：上下文来源、盘点结论、假设、未决问题和决策；
 - `test_strategy`：默认 `tdd`，以及每个豁免的对象、理由和替代检查；
 - `blockers`：真实阻塞；
@@ -81,6 +82,10 @@ human_gate:
 - `readiness_slice`：为真实验收准备应用、数据、环境和入口。
 
 所有当前矩阵 AST 必须至少被一个切片覆盖；工程或就绪切片可以没有 AST，但不能用它们掩盖行为切片的缺失。切片之间的工程依赖写入 `depends_on`，不把业务依赖伪装成实现依赖。
+
+`实现计划.md` 是当前计划，不保存历史版本。首次制定计划时写入当前 `spec_ref`。后续确认了新 SPEC 时，在进入新一轮实现前必须把当前计划更新到新的 `spec_ref`、恢复为 `PLANNED`、重新规划受影响切片，并将 `completion_review` 的总状态、预检、程序复核和语义复核全部重置为 `PENDING`；旧报告和 reviewed assertions 不得作为新 SPEC 的当前结果。不受影响的代码可以复用，但全部必需 AST 仍须按当前矩阵重新通过覆盖预检。
+
+计划机器块更新后，使用 `dc-context-loop/scripts/render_implementation_plan.py` 结合当前 `验收矩阵.md` 生成同一文件的人类可读章节；渲染完成后使用 `--check` 确认视图没有漂移。人类章节不是第二份计划事实，不得手工维护。
 
 ## 执行和状态
 
@@ -116,8 +121,10 @@ RED/GREEN/REFACTOR 只记录实现过程，不生成正式 RUN/ART。
 
 ### 自测前覆盖预检
 
-在计划从 `PLANNED` 进入 `IN_PROGRESS` 或开始自测前，先执行程序化覆盖预检：
+在计划从 `PLANNED` 进入 `IN_PROGRESS` 或开始自测前，先使用当前完整 SPEC 事件和当前验收矩阵执行程序化覆盖预检：
 
+- `spec_ref` 必须匹配当前 SPEC，且该 SPEC 和矩阵都属于当前 REQ；
+- 计划必须处于 `PLANNED`，旧完成复核已全部重置为 `PENDING`；
 - 当前有效 SPEC 的每个必需 AST 至少被一个实现切片引用，且引用属于当前定义；
 - 每个 `behavior_slice` 都有 `production_refs` 和 `test_refs`，或记录完整、合法的 TDD 豁免；
 - 不存在无效引用、未决问题或 blocker。

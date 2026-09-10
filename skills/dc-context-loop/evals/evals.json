@@ -84,6 +84,12 @@
       "prompt": "本轮 SPEC 事件发布接口返回 2xx，且当前上下文已经足够进入实现。",
       "expected_output": "报告 SPEC 发布成功并结束本轮，不在同一轮调用实现技能。下一轮进入 IMPLEMENTATION 时先判断当前上下文是否仍有效；有效且无变化信号则复用当前 REQ/SPEC 和 Issue context，缺失、冲突、关键引用无法确认或用户显式变化/刷新时才完整 intake。",
       "files": []
+    },
+    {
+      "id": 15,
+      "prompt": "上一轮已确认并成功发布 SPEC-002，当前会话仍保留完整 REQ/SPEC 上下文。用户现在说 next。",
+      "expected_output": "复用当前上下文进入 IMPLEMENTATION，不重新 intake；本地实现计划明确绑定 SPEC-002。若已有旧计划，则先恢复 PLANNED、重置旧完成复核并按当前矩阵重新执行覆盖预检。",
+      "files": []
     }
   ]
 }

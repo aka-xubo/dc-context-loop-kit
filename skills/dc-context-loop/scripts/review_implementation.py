@@ -63,7 +63,7 @@ def run_git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def preflight(plan_file: Path, matrix_file: Path | None) -> tuple[bool, list[str]]:
+def preflight(plan_file: Path, matrix_file: Path | None, spec_file: Path | None) -> tuple[bool, list[str]]:
     plan_doc = load_yaml(plan_file)
     plan = as_dict(plan_doc.get("implementation_plan"))
     errors: list[str] = []
@@ -73,10 +73,54 @@ def preflight(plan_file: Path, matrix_file: Path | None) -> tuple[bool, list[str
         (lines if condition else errors).append(("PASSED: " if condition else "FAILED: ") + message)
 
     check(plan_doc.get("document_type") == "implementation_plan", "实现计划文档类型正确")
-    check(plan.get("status") in {"PLANNED", "IN_PROGRESS"}, "覆盖预检发生在编码前阶段")
+    check(plan.get("status") == "PLANNED", "覆盖预检发生在 PLANNED 阶段")
     check(not as_list(plan.get("blockers")), "计划没有 blocker")
     context = as_dict(plan.get("context_review"))
     check(not as_list(context.get("open_questions")), "计划没有未决问题")
+    requirement_id = as_dict(plan.get("requirement_ref")).get("requirement_id")
+    spec_ref = plan.get("spec_ref")
+    check(bool(re.fullmatch(r"SPEC-[0-9]{3}", str(spec_ref))), "实现计划包含三位数字 spec_ref")
+
+    completion = as_dict(plan.get("completion_review"))
+    preflight_review = as_dict(completion.get("preflight"))
+    program_review = as_dict(completion.get("program"))
+    semantic_review = as_dict(completion.get("semantic"))
+    review_reset = (
+        completion.get("status") == "PENDING"
+        and completion.get("performed_after_self_test") is False
+        and preflight_review.get("status") == "PENDING"
+        and preflight_review.get("report") is None
+        and program_review.get("status") == "PENDING"
+        and program_review.get("command") is None
+        and program_review.get("report") is None
+        and not as_list(program_review.get("findings"))
+        and semantic_review.get("status") == "PENDING"
+        and not as_list(semantic_review.get("reviewed_assertions"))
+        and not as_list(semantic_review.get("findings"))
+    )
+    check(review_reset, "开工前旧完成复核状态必须重置为 PENDING")
+
+    spec_check_ids: set[str] = set()
+    spec_assertion_ids: set[str] = set()
+    if spec_file:
+        spec_doc = load_yaml(spec_file)
+        event = as_dict(spec_doc.get("event"))
+        specification = as_dict(event.get("specification"))
+        current_spec_ref = event.get("subject_id")
+        check(spec_doc.get("document_type") == "deep_crew_delivery_event", "当前 SPEC 文件是交付事件")
+        check(event.get("node") == "SPEC", "当前 SPEC 文件的节点为 SPEC")
+        check(specification.get("requirement_ref") == requirement_id, "当前 SPEC 属于实现计划的 REQ")
+        if spec_ref == current_spec_ref:
+            check(True, f"实现计划 spec_ref 与当前 SPEC 匹配：{current_spec_ref}")
+        else:
+            check(False, f"实现计划 spec_ref 与当前 SPEC 不一致（计划：{spec_ref}，当前：{current_spec_ref}）")
+        spec_check_ids = {str(as_dict(item).get("id")) for item in as_list(specification.get("checks"))}
+        spec_assertion_ids = {str(as_dict(item).get("id")) for item in as_list(specification.get("assertions"))}
+        check(bool(spec_check_ids) and bool(spec_assertion_ids), "当前 SPEC 是包含 CHK/AST 的完整快照")
+        if spec_ref == current_spec_ref:
+            check(True, f"实现计划绑定当前 SPEC：{current_spec_ref}")
+    else:
+        check(False, "覆盖预检必须提供 --spec-file 以核对当前已确认 SPEC")
     slices = [as_dict(item) for item in as_list(plan.get("slices"))]
     check(bool(slices), "实现计划包含切片")
     covered: set[str] = set()
@@ -92,6 +136,9 @@ def preflight(plan_file: Path, matrix_file: Path | None) -> tuple[bool, list[str
         check(item.get("kind") in {"behavior_slice", "engineering_slice", "readiness_slice"}, f"切片 {slice_id} 类型合法")
         check(all(re.fullmatch(r"CHK-[A-Za-z0-9_-]+", str(ref)) for ref in as_list(item.get("check_refs"))), f"切片 {slice_id} 的 CHK 引用格式合法")
         check(all(re.fullmatch(r"AST-[A-Za-z0-9_-]+", str(ref)) for ref in assertions), f"切片 {slice_id} 的 AST 引用格式合法")
+        if spec_file:
+            check(set(map(str, as_list(item.get("check_refs")))) <= spec_check_ids, f"切片 {slice_id} 的 CHK 引用属于当前 SPEC")
+            check(assertions <= spec_assertion_ids, f"切片 {slice_id} 的 AST 引用属于当前 SPEC")
         if item.get("kind") == "behavior_slice":
             check(bool(as_list(item.get("production_refs"))), f"行为切片 {slice_id} 有生产引用")
             check(bool(as_list(item.get("test_refs"))) or (assertions and assertions <= exemptions), f"行为切片 {slice_id} 有测试引用或合法豁免")
@@ -99,6 +146,9 @@ def preflight(plan_file: Path, matrix_file: Path | None) -> tuple[bool, list[str
         matrix_doc = load_embedded_yaml(matrix_file)
         matrix = as_dict(matrix_doc.get("acceptance_matrix"))
         if matrix:
+            check(matrix.get("status") == "CONFIRMED", "当前验收矩阵状态为 CONFIRMED")
+            matrix_requirement_id = as_dict(matrix_doc.get("requirement_ref")).get("requirement_id")
+            check(matrix_requirement_id == requirement_id, "当前验收矩阵属于实现计划的 REQ")
             required_ast = {
                 str(as_dict(assertion).get("id"))
                 for check_item in as_list(matrix.get("checks"))
@@ -143,6 +193,9 @@ def review(plan_file: Path, event_file: Path, repository_override: Path | None) 
     check(event_doc.get("document_type") == "deep_crew_delivery_event", "实现事件文档类型正确")
     check(event.get("node") == "IMPLEMENTATION", "事件节点为 IMPLEMENTATION")
     check(implementation.get("status") == "READY", "实现事件状态为 READY")
+    check(as_dict(plan.get("requirement_ref")).get("requirement_id") == implementation.get("requirement_ref"), "实现计划与实现事件绑定同一 REQ")
+    if implementation.get("spec_ref") is not None:
+        check(plan.get("spec_ref") == implementation.get("spec_ref"), "实现计划与实现事件绑定同一 SPEC")
 
     plan_slices = {str(as_dict(item).get("id")): as_dict(item) for item in as_list(plan.get("slices"))}
     event_items = as_list(implementation.get("completed_items"))
@@ -238,10 +291,11 @@ def main() -> int:
     parser.add_argument("--report-file", type=Path)
     parser.add_argument("--phase", choices=["preflight", "completion"], default="completion")
     parser.add_argument("--matrix-file", type=Path, help="自测前覆盖预检使用的验收矩阵 Markdown 文件")
+    parser.add_argument("--spec-file", type=Path, help="自测前覆盖预检使用的当前完整 SPEC 事件文件")
     args = parser.parse_args()
     try:
         if args.phase == "preflight":
-            passed, lines = preflight(args.plan_file, args.matrix_file)
+            passed, lines = preflight(args.plan_file, args.matrix_file, args.spec_file)
         else:
             if args.event_file is None:
                 raise ReviewError("completion 阶段必须提供 --event-file")

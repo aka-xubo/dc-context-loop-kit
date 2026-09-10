@@ -13,6 +13,8 @@
 
 实现计划还必须保存完成前复核结果。复核发生在开发自测之后、固定 commit 和发布 `READY` 之前；自测前另有一次只检查计划覆盖的预检。程序复核负责确定性结构和 Git 事实，Agent 复核负责逐 AST 语义判断，两者均通过后才能发布 `IMP-*`。
 
+当前计划必须用 `spec_ref` 明确绑定一份当前有效且已确认的完整 SPEC。确认了新 SPEC 后，不创建计划历史链：直接把 `实现计划.md` 更新到新的 `spec_ref`，恢复 `PLANNED`，重新规划受影响切片，并把旧预检、程序复核、语义复核及 reviewed assertions 全部重置为 `PENDING` 或空值。已有代码能否复用由新切片判断，但新计划必须重新覆盖当前矩阵的全部必需 AST。
+
 ## 上下文盘点
 
 在创建第一个实现切片前，读取并记录：
@@ -31,6 +33,37 @@
 ```
 
 路径是审计索引，不是 ART；计划不能用“看过文件”替代正式验收证据。
+
+## 人类可读视图
+
+`实现计划.md` 的 YAML 机器块是唯一计划数据。每次创建或更新机器块后，用当前验收矩阵生成同文件的 Markdown 视图：
+
+```bash
+python3 <kit-dir>/dc-context-loop/scripts/render_implementation_plan.py \
+  --plan-file docs/交付证明/<REQ-ID>/实现计划.md \
+  --matrix-file docs/交付证明/<REQ-ID>/验收矩阵.md \
+  --output-file docs/交付证明/<REQ-ID>/实现计划.md
+
+python3 <kit-dir>/dc-context-loop/scripts/render_implementation_plan.py \
+  --plan-file docs/交付证明/<REQ-ID>/实现计划.md \
+  --matrix-file docs/交付证明/<REQ-ID>/验收矩阵.md \
+  --check
+```
+
+视图结论先行展示状态、REQ、SPEC、目标、阻塞和完成复核，再按执行顺序展开切片，并从矩阵补充 AST 自然语言。`--check` 重新生成完整内容并逐字比较；计划机器块、矩阵或人类章节任一变化导致漂移时都失败。
+
+计划处于 `PLANNED` 且旧复核已重置后，用当前完整 SPEC 事件执行覆盖预检：
+
+```bash
+python3 <kit-dir>/dc-context-loop/scripts/review_implementation.py \
+  --phase preflight \
+  --plan-file docs/交付证明/<REQ-ID>/实现计划.md \
+  --matrix-file docs/交付证明/<REQ-ID>/验收矩阵.md \
+  --spec-file <operation-workspace>/current-spec.yaml \
+  --report-file <operation-workspace>/preflight.txt
+```
+
+预检通过后才把计划和切片推进到执行状态。`current-spec.yaml` 必须是总协调器提供并合并完成的当前完整 SPEC，不能直接使用未合并的增量事件。
 
 ## 交互判断
 
